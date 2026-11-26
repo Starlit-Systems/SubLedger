@@ -7,7 +7,8 @@ using SubLedger.Core;
 namespace SubLedger.Ui;
 
 /// <summary>One bar. A missing bar is a day with no record at all, which is not the same as a day that earned zero.</summary>
-internal readonly record struct ChartBar(string AxisLabel, long Value, bool Missing, string TooltipTitle, string TooltipDetail, bool Emphasis);
+/// <param name="AxisGroup">What the label belongs to (a month name, a year). Shown beside the label whenever it changes.</param>
+internal readonly record struct ChartBar(string AxisLabel, string AxisGroup, long Value, bool Missing, string TooltipTitle, string TooltipDetail, bool Emphasis);
 
 /// <summary>A hand-drawn bar chart in the ledger's colours, with hover details.</summary>
 internal static class BarChart
@@ -23,7 +24,8 @@ internal static class BarChart
         long max = Math.Max(referenceLine, 1);
         foreach (var bar in bars)
             max = Math.Max(max, bar.Value);
-        var top = NiceCeiling(max);
+        var (step, steps) = NiceScale(max);
+        var top = step * steps;
 
         var axisWidth = Widgets.Measure(GilFormat.Short(top), assets.Small).X + Theme.S(10f);
         var labelHeight = Widgets.Measure("0", assets.Small).Y + Theme.S(6f);
@@ -33,7 +35,6 @@ internal static class BarChart
         var plotWidth = plotMax.X - plotMin.X;
 
         // Horizontal guides with their values.
-        const int steps = 4;
         for (var i = 0; i <= steps; i++)
         {
             var value = top * i / steps;
@@ -51,8 +52,9 @@ internal static class BarChart
         if (ImGui.IsWindowHovered() && mouse.X >= plotMin.X && mouse.X < plotMax.X && mouse.Y >= plotMin.Y - Theme.S(4f) && mouse.Y <= plotMax.Y + labelHeight)
             hovered = Math.Clamp((int)((mouse.X - plotMin.X) / slot), 0, bars.Count - 1);
 
-        // Show roughly one axis label per 56 pixels so they never collide.
-        var labelEvery = Math.Max(1, (int)MathF.Ceiling(Theme.S(56f) / slot));
+        // Show roughly one axis label per 64 pixels so they never collide.
+        var labelEvery = Math.Max(1, (int)MathF.Ceiling(Theme.S(64f) / slot));
+        var lastGroup = string.Empty;
 
         for (var i = 0; i < bars.Count; i++)
         {
@@ -84,11 +86,16 @@ internal static class BarChart
                     drawList.AddRectFilled(barMin, new Vector2(barMax.X, barMin.Y + height * 0.5f), Theme.U32(Theme.Alpha(body, 0.85f)), rounding, ImDrawFlags.RoundCornersTop);
             }
 
-            if (i % labelEvery == 0 || i == bars.Count - 1 && labelEvery == 1)
+            if (i % labelEvery == 0)
             {
-                var textSize = Widgets.Measure(bar.AxisLabel, assets.Small);
-                Widgets.TextAt(drawList, new Vector2(centerX - textSize.X * 0.5f, plotMax.Y + Theme.S(5f)), bar.AxisLabel,
-                    isHovered ? Theme.TextSoft : Theme.TextMuted, assets.Small);
+                // Name the month (or year) on the first label and again each time it changes.
+                var newGroup = bar.AxisGroup.Length > 0 && bar.AxisGroup != lastGroup;
+                lastGroup = bar.AxisGroup;
+                var label = newGroup ? $"{bar.AxisGroup} {bar.AxisLabel}" : bar.AxisLabel;
+                var textSize = Widgets.Measure(label, assets.Small);
+                var x = Math.Clamp(centerX - textSize.X * 0.5f, plotMin.X, MathF.Max(plotMin.X, plotMax.X - textSize.X));
+                Widgets.TextAt(drawList, new Vector2(x, plotMax.Y + Theme.S(5f)), label,
+                    isHovered || newGroup ? Theme.TextSoft : Theme.TextMuted, assets.Small);
             }
         }
 
@@ -124,15 +131,39 @@ internal static class BarChart
         }
     }
 
-    /// <summary>Rounds up to 1, 2, 2.5, 5 or 10 times a power of ten, so the axis has tidy values.</summary>
-    private static long NiceCeiling(long value)
+    /// <summary>
+    /// Picks the axis: three to five equal steps of a round size (1, 2, 2.5 or 5 times a power of ten) that reach the
+    /// largest value with the least empty space above it.
+    /// </summary>
+    internal static (long Step, int Steps) NiceScale(long max)
     {
-        if (value <= 4)
-            return 4;
+        if (max <= 4)
+            return (1, 4);
 
-        var magnitude = Math.Pow(10, Math.Floor(Math.Log10(value)));
-        var fraction = value / magnitude;
-        var nice = fraction <= 1 ? 1 : fraction <= 2 ? 2 : fraction <= 2.5 ? 2.5 : fraction <= 4 ? 4 : fraction <= 5 ? 5 : fraction <= 8 ? 8 : 10;
-        return (long)(nice * magnitude);
+        var magnitude = Math.Pow(10, Math.Floor(Math.Log10(max)));
+        (long Step, int Steps) best = ((long)(magnitude * 10), 3);
+        var bestTop = double.MaxValue;
+        foreach (var scale in new[] { magnitude / 10, magnitude, magnitude * 10 })
+        {
+            foreach (var mantissa in new[] { 1.0, 2.0, 2.5, 5.0 })
+            {
+                var step = Math.Round(scale * mantissa);
+                if (step < 1)
+                    continue;
+
+                var steps = (int)Math.Ceiling(max / step);
+                if (steps is < 3 or > 5)
+                    continue;
+
+                var top = step * steps;
+                if (top < bestTop)
+                {
+                    bestTop = top;
+                    best = ((long)step, steps);
+                }
+            }
+        }
+
+        return best;
     }
 }

@@ -10,6 +10,12 @@ internal static class Changelog
 {
     public static readonly IReadOnlyList<ChangelogEntry> Entries =
     [
+        new("0.1.1.0", new DateOnly(2026, 11, 26),
+        [
+            "Latest voyages on the dashboard is now one card per submarine, each showing its last five voyages",
+            "The daily chart uses its full height and names the month along the bottom",
+            "Buttons line up with the search boxes beside them, and the Console page no longer shows a stray scrollbar",
+        ]),
         new("0.1.0.1", new DateOnly(2026, 11, 26),
         [
             "First version: every submarine voyage you collect is recorded automatically, with each item valued at its NPC vendor price from the game's own data",

@@ -23,7 +23,9 @@ internal sealed class DashboardPage
     private LedgerSummary summary = new();
     private List<GroupStats> bySubmarine = [];
     private List<GroupStats> byRoute = [];
-    private IReadOnlyList<Voyage> recent = [];
+    private sealed record SubLatest(string Name, string FreeCompany, IReadOnlyList<Voyage> Voyages);
+
+    private List<SubLatest> latest = [];
     private int chartDays = 30;
 
     private DateTime trackerCheckedAt = DateTime.MinValue;
@@ -51,7 +53,21 @@ internal sealed class DashboardPage
         summary = LedgerAnalytics.Summarize(days, today);
         bySubmarine = LedgerAnalytics.BySubmarine(snapshot.Voyages, fc);
         byRoute = LedgerAnalytics.ByRoute(snapshot.Voyages, fc);
-        recent = [.. snapshot.Voyages.Where(v => fc == 0 || v.FcId == fc).Take(6)];
+
+        // The last five voyages of each submarine. Submarines that have not sailed for a long while (replaced or
+        // retired) are left out so the row stays the current fleet.
+        var shown = snapshot.Voyages.Where(v => fc == 0 || v.FcId == fc).ToList();
+        var newest = shown.Count == 0 ? 0 : shown[0].CollectedUnix;
+        var severalCompanies = shown.Select(v => v.FcId).Distinct().Count() > 1;
+        latest = [.. shown
+            .GroupBy(v => (v.FcId, v.SubRegister))
+            .Where(g => g.First().CollectedUnix >= newest - 45L * 86400)
+            .OrderBy(g => g.Key.FcId).ThenBy(g => g.Key.SubRegister)
+            .Take(12)
+            .Select(g => new SubLatest(
+                g.FirstOrDefault(v => !string.IsNullOrWhiteSpace(v.SubName))?.SubName ?? "Submarine",
+                severalCompanies ? snapshot.FreeCompanies.FirstOrDefault(c => c.FcId == g.Key.FcId)?.DisplayName ?? string.Empty : string.Empty,
+                [.. g.Take(5)]))];
     }
 
     public void Draw()
@@ -89,7 +105,7 @@ internal sealed class DashboardPage
         Widgets.VSpace(6f);
         DrawBreakdowns(assets);
         Widgets.VSpace(6f);
-        DrawRecent(assets);
+        DrawLatest(assets);
         Widgets.VSpace(8f);
     }
 
@@ -201,9 +217,8 @@ internal sealed class DashboardPage
         for (var offset = chartDays - 1; offset >= 0; offset--)
         {
             var date = today.AddDays(-offset);
-            var label = date.Day == 1 || offset == chartDays - 1
-                ? date.ToString("MMM d", CultureInfo.InvariantCulture)
-                : date.Day.ToString(CultureInfo.InvariantCulture);
+            var label = date.Day.ToString(CultureInfo.InvariantCulture);
+            var month = date.ToString("MMM", CultureInfo.InvariantCulture);
             var title = date.ToString("dddd, d MMMM yyyy", CultureInfo.InvariantCulture);
 
             if (days.TryGetValue(date, out var day))
@@ -213,11 +228,11 @@ internal sealed class DashboardPage
                     detail += $"\nA hand-kept total of {GilFormat.Exact(day.ManualGil)} gil exists for this day and is not counted.";
                 if (day.AdjustmentGil != 0)
                     detail += $"\nIncludes a correction of {GilFormat.Exact(day.AdjustmentGil)} gil.";
-                bars.Add(new ChartBar(label, Math.Max(0, day.IncomeGil), false, title, detail, offset == 0));
+                bars.Add(new ChartBar(label, month, Math.Max(0, day.IncomeGil), false, title, detail, offset == 0));
             }
             else
             {
-                bars.Add(new ChartBar(label, 0, true, title, string.Empty, false));
+                bars.Add(new ChartBar(label, month, 0, true, title, string.Empty, false));
             }
         }
 
@@ -301,43 +316,71 @@ internal sealed class DashboardPage
         Widgets.EndCard();
     }
 
-    private void DrawRecent(UiAssets assets)
+    /// <summary>One card per submarine with its last five voyages, so each boat's recent form can be read at a glance.</summary>
+    private void DrawLatest(UiAssets assets)
     {
-        if (recent.Count == 0)
+        if (latest.Count == 0)
             return;
 
-        var rowHeight = ImGui.GetTextLineHeight() + Theme.S(12f);
-        Widgets.BeginCard("##recent", new Vector2(0, Theme.S(62f) + rowHeight * recent.Count));
         Widgets.Text("Latest voyages", Theme.Text, assets.Heading);
+        ImGui.SameLine(0, Theme.S(10f));
+        ImGui.SetCursorPosY(ImGui.GetCursorPosY() + Widgets.Measure("A", assets.Heading).Y - ImGui.GetTextLineHeight() - Theme.S(1f));
+        Widgets.Text("the last five from each submarine", Theme.TextDim);
         Widgets.VSpace(2f);
 
+        var gap = Theme.S(10f);
+        var available = ImGui.GetContentRegionAvail().X;
+        var perRow = Math.Clamp((int)((available + gap) / (Theme.S(236f) + gap)), 1, Math.Min(4, latest.Count));
+        var width = MathF.Floor((available - gap * (perRow - 1)) / perRow);
+        var rowHeight = ImGui.GetTextLineHeight() + Theme.S(12f);
+        var showCompany = latest.Any(s => s.FreeCompany.Length > 0);
+        var height = Theme.S(showCompany ? 104f : 84f) + rowHeight * 5;
         var calendar = plugin.Calendar;
-        ImGui.PushStyleVar(ImGuiStyleVar.CellPadding, Theme.S(6f, 6f));
-        if (ImGui.BeginTable("##recentTable", 4, ImGuiTableFlags.SizingStretchProp | ImGuiTableFlags.BordersInnerH | ImGuiTableFlags.NoSavedSettings))
-        {
-            ImGui.TableSetupColumn("When", ImGuiTableColumnFlags.WidthStretch, 1.5f);
-            ImGui.TableSetupColumn("Submarine", ImGuiTableColumnFlags.WidthStretch, 1.6f);
-            ImGui.TableSetupColumn("Route", ImGuiTableColumnFlags.WidthStretch, 0.8f);
-            ImGui.TableSetupColumn("Value", ImGuiTableColumnFlags.WidthStretch, 1.2f);
 
-            foreach (var v in recent)
+        for (var i = 0; i < latest.Count; i++)
+        {
+            if (i % perRow != 0)
+                ImGui.SameLine(0, gap);
+
+            var sub = latest[i];
+            Widgets.BeginCard($"##latest{i}", new Vector2(width, height));
+
+            Widgets.Text(sub.Name, Theme.Text, assets.Heading);
+            if (showCompany)
+                Widgets.Text(sub.FreeCompany, Theme.TextDim, assets.Small);
+            var average = sub.Voyages.Sum(v => v.TotalGil) / sub.Voyages.Count;
+            Widgets.Text($"Averaging {GilFormat.Short(average)} over {(sub.Voyages.Count == 1 ? "its last voyage" : $"its last {sub.Voyages.Count}")}", Theme.TextDim, assets.Small);
+            Widgets.VSpace(1f);
+
+            ImGui.PushStyleVar(ImGuiStyleVar.CellPadding, Theme.S(4f, 6f));
+            if (ImGui.BeginTable($"##latestTable{i}", 3, ImGuiTableFlags.SizingStretchProp | ImGuiTableFlags.BordersInnerH | ImGuiTableFlags.NoSavedSettings))
             {
-                ImGui.TableNextRow();
-                ImGui.TableNextColumn();
-                Widgets.Text(calendar.ToLocal(v.CollectedUnix).ToString("ddd d MMM, HH:mm", CultureInfo.InvariantCulture), Theme.TextSoft);
-                ImGui.TableNextColumn();
-                Widgets.Text(string.IsNullOrEmpty(v.SubName) ? "Submarine" : v.SubName, Theme.Text);
-                ImGui.TableNextColumn();
-                Widgets.Text(v.Route, Theme.Teal);
-                ImGui.TableNextColumn();
-                Widgets.TextRight($"{GilFormat.Exact(v.TotalGil)} gil", Theme.Gold);
+                ImGui.TableSetupColumn("When", ImGuiTableColumnFlags.WidthStretch, 1.5f);
+                ImGui.TableSetupColumn("Route", ImGuiTableColumnFlags.WidthStretch, 0.7f);
+                ImGui.TableSetupColumn("Value", ImGuiTableColumnFlags.WidthStretch, 1.1f);
+
+                foreach (var v in sub.Voyages)
+                {
+                    ImGui.TableNextRow();
+                    ImGui.TableNextColumn();
+                    Widgets.Text(calendar.ToLocal(v.CollectedUnix).ToString("d MMM, HH:mm", CultureInfo.InvariantCulture), Theme.TextSoft);
+                    ImGui.TableNextColumn();
+                    Widgets.Text(v.Route, Theme.Teal);
+                    ImGui.TableNextColumn();
+                    Widgets.TextRight(GilFormat.Exact(v.TotalGil), Theme.Gold);
+                    if (ImGui.IsItemHovered())
+                    {
+                        var loot = string.Join("\n", v.Loot.OrderByDescending(l => l.TotalGil).Take(4).Select(l => $"{l.Quantity} x {l.ItemName}: {GilFormat.Exact(l.TotalGil)}"));
+                        Widgets.Tooltip($"{GilFormat.Exact(v.TotalGil)} gil\n{loot}{(v.Loot.Count > 4 ? $"\nand {v.Loot.Count - 4} more" : string.Empty)}");
+                    }
+                }
+
+                ImGui.EndTable();
             }
 
-            ImGui.EndTable();
+            ImGui.PopStyleVar();
+            Widgets.EndCard();
         }
-
-        ImGui.PopStyleVar();
-        Widgets.EndCard();
     }
 
     private static string Plural(int count, string noun)

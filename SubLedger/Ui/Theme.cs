@@ -127,7 +127,7 @@ internal static class Theme
         Var(ImGuiStyleVar.WindowPadding, Vector2.Zero);
         Var(ImGuiStyleVar.WindowBorderSize, 1f);
         Var(ImGuiStyleVar.FrameRounding, S(6f));
-        Var(ImGuiStyleVar.FramePadding, S(9f, 6f));
+        Var(ImGuiStyleVar.FramePadding, S(9f, 7f));
         Var(ImGuiStyleVar.ItemSpacing, S(8f, 7f));
         Var(ImGuiStyleVar.PopupRounding, S(8f));
         Var(ImGuiStyleVar.ScrollbarRounding, S(8f));

@@ -359,7 +359,8 @@ internal static class Widgets
         var text = ImGui.CalcTextSize(label);
         var iconSize = icon is { } i ? IconSize(i) : Vector2.Zero;
         var gap = icon is null ? 0f : Theme.S(8f);
-        var size = new Vector2(text.X + iconSize.X + gap + Theme.S(26f), Theme.S(32f));
+        // As tall as a text box, so a button beside a search field lines up with it.
+        var size = new Vector2(text.X + iconSize.X + gap + Theme.S(26f), ImGui.GetFrameHeight());
         var origin = ImGui.GetCursorScreenPos();
         var end = origin + size;
         var drawList = ImGui.GetWindowDrawList();

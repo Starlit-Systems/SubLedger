@@ -100,7 +100,8 @@ internal sealed class ConsolePage
 
         Widgets.VSpace(4f);
 
-        var footerHeight = ImGui.GetTextLineHeight() + Theme.S(10f);
+        // Room for the "Showing n of m" line under the log: its text, the gap above it, and the spacing between items.
+        var footerHeight = ImGui.GetTextLineHeight() + Theme.S(4f) + ImGui.GetStyle().ItemSpacing.Y * 3f;
         var size = new Vector2(0, MathF.Max(Theme.S(100f), ImGui.GetContentRegionAvail().Y - footerHeight));
         Widgets.BeginCard("##log", size, Theme.Mix(Theme.Abyss, Theme.Deep, 0.5f), flags: ImGuiWindowFlags.HorizontalScrollbar, padding: Theme.S(12f, 10f));
 
