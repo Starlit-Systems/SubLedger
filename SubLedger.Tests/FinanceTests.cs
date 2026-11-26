@@ -168,3 +168,43 @@ public class FinanceTests
         Assert.Equal("2026-05-02,running cost,Ceruleum tanks,,30000,Starlit", lines[2]);
     }
 }
+
+public class MultiCompanyTests
+{
+    private static readonly BusinessCalendar Utc = new(TimeZoneInfo.Utc, 0);
+    private static readonly DateOnly Day = new(2026, 5, 5);
+
+    private static Voyage V(ulong fc, long gil)
+        => new() { FcId = fc, SubRegister = 1, CollectedUnix = new DateTimeOffset(2026, 5, 5, 12, 0, 0, TimeSpan.Zero).ToUnixTimeSeconds(), TotalGil = gil };
+
+    private static LedgerEntry Hand(ulong fc, long gil)
+        => new() { Kind = LedgerEntryKind.HistoricalDay, BusinessDate = Day, AmountGil = gil, FcId = fc };
+
+    [Fact]
+    public void One_companys_voyages_do_not_hide_another_companys_hand_kept_total()
+    {
+        var days = LedgerAnalytics.Daily([V(1, 100_000)], [Hand(1, 90_000), Hand(2, 40_000)], Utc);
+
+        // Company 1's hand-kept total gives way to its voyages; company 2's still counts.
+        Assert.Equal(140_000, days[Day].IncomeGil);
+        Assert.Equal(90_000, days[Day].ExcludedManualGil);
+        Assert.True(days[Day].ManualExcluded);
+    }
+
+    [Fact]
+    public void A_hand_kept_total_with_no_company_gives_way_to_any_voyages()
+    {
+        var days = LedgerAnalytics.Daily([V(1, 100_000)], [Hand(0, 90_000)], Utc);
+
+        Assert.Equal(100_000, days[Day].IncomeGil);
+    }
+
+    [Fact]
+    public void Viewing_one_company_counts_only_its_own_records()
+    {
+        var days = LedgerAnalytics.Daily([V(1, 100_000)], [Hand(2, 40_000)], Utc, fcId: 2);
+
+        Assert.Equal(40_000, days[Day].IncomeGil);
+        Assert.False(days[Day].ManualExcluded);
+    }
+}

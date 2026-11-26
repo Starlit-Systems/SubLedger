@@ -280,7 +280,7 @@ internal sealed class DashboardPage
             {
                 var detail = day.Voyages > 0 ? Plural(day.Voyages, "voyage") : day.HasManual ? "Hand-kept total" : string.Empty;
                 if (day.ManualExcluded)
-                    detail += $"\nA hand-kept total of {GilFormat.Exact(day.ManualGil)} gil exists for this day and is not counted.";
+                    detail += $"\nHand-kept totals of {GilFormat.Exact(day.ExcludedManualGil)} gil for this day are not counted: recorded voyages take their place.";
                 if (day.AdjustmentGil != 0)
                     detail += $"\nIncludes a correction of {GilFormat.Exact(day.AdjustmentGil)} gil.";
                 bars.Add(new ChartBar(label, month, Math.Max(0, day.IncomeGil), false, title, detail, offset == 0));

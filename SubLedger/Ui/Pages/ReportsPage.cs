@@ -76,6 +76,13 @@ internal sealed class ReportsPage
         {
             days = LedgerAnalytics.Daily(snapshot.Voyages, snapshot.Entries, calendar, fc);
             firstDay = days.Count > 0 ? days.Keys.First() : null;
+
+            // "Lifetime" also takes in spending from before the first voyage, such as the parts and the plot.
+            foreach (var e in snapshot.Entries)
+            {
+                if (!e.Deleted && ExpenseCategories.IsCost(e.Kind) && (fc == 0 || e.FcId == fc) && (firstDay is null || e.BusinessDate < firstDay))
+                    firstDay = e.BusinessDate;
+            }
         }
 
         var range = preset == RangePreset.Custom
@@ -443,6 +450,16 @@ internal sealed class ReportsPage
     private void DrawExport(UiAssets assets)
     {
         Widgets.BeginPanel();
+        Widgets.Text("Full report in your browser", Theme.Text, assets.Heading);
+        Widgets.Text(
+            "One page with every chart and table, its own date and Free Company filters, a light and a dark look, and nothing to install. "
+            + "It is a single file you can keep, print or send to someone; it opens on the period chosen here.",
+            Theme.TextDim);
+        Widgets.VSpace(4f);
+        if (Widgets.Button(plugin.ExportRunning ? "Building..." : "Open HTML report", FontAwesomeIcon.ExternalLinkAlt, Widgets.ButtonKind.Primary, !plugin.ExportRunning))
+            plugin.OpenHtmlReport(report.Range, preset, grouping);
+        Widgets.PanelDivider();
+
         Widgets.Text("Take this period elsewhere", Theme.Text, assets.Heading);
         Widgets.Text(
             "Spreadsheet files (CSV) open in Excel, Google Sheets and the like: one file of voyages, one of every item, one of daily totals. "
@@ -451,7 +468,7 @@ internal sealed class ReportsPage
         Widgets.VSpace(4f);
 
         var busy = plugin.ExportRunning;
-        if (Widgets.Button("Export spreadsheets", FontAwesomeIcon.FileCsv, Widgets.ButtonKind.Primary, !busy))
+        if (Widgets.Button("Export spreadsheets", FontAwesomeIcon.FileCsv, enabled: !busy))
             plugin.ExportCsv(report, voyagesInRange, days);
         ImGui.SameLine(0, Theme.S(8f));
         if (Widgets.Button("Export data file", FontAwesomeIcon.FileCode, enabled: !busy))

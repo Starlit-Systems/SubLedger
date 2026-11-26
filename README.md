@@ -26,14 +26,14 @@ That one address lists every Starlit Systems plugin.
 - **Exact gil.** Values are stored to the single gil. Short forms such as `1.05m` are only a display option.
 - **Imports your history.** If you have used SubmarineTracker, its past voyages can be copied into the ledger with one click.
 - **Per Free Company.** Each Free Company's submarines are tracked separately, with a combined view when you have more than one.
-- **Reports for any period.** Preset or custom date ranges, grouped by day, week, month or quarter, with income charts, a breakdown by item, submarine or route, and export to CSV or JSON.
+- **Reports for any period.** Preset or custom date ranges, grouped by day, week, month or quarter, with income charts, a breakdown by item, submarine or route, export to CSV or JSON, and a full interactive HTML report that opens in your browser.
 - **Brings in your own records.** A hand-kept list such as `Day 1: 125k` or a two-column spreadsheet can be imported. Where a day has both a hand-kept total and recorded voyages, the voyages count and the total is kept on file, so nothing is doubled.
 - **Knows what it cost.** Enter what you spent on parts, housing, fuel and repairs, and SubLedger shows your profit, your return on investment and the day the fleet paid for itself.
 - **Looks after its data.** A dated backup is made every day, and if the ledger file is ever damaged SubLedger restores the newest healthy backup on its own.
 
 ## Status
 
-This is an early version. Recording, the ledger, the SubmarineTracker import, the dashboard, date-range reports with charts, CSV and JSON export, importing hand-kept totals from text and spreadsheet files, and manual corrections are in. Expense and payback tracking is in too. Still to come: a standalone HTML report, and merging ledgers kept on several computers.
+This is an early version. Recording, the ledger, the SubmarineTracker import, the dashboard, date-range reports with charts, CSV and JSON export, importing hand-kept totals from text and spreadsheet files, and manual corrections are in. Expense and payback tracking and a standalone HTML report are in too. Still to come: merging ledgers kept on several computers.
 
 ## Building from source
 

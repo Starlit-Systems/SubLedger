@@ -10,6 +10,13 @@ internal static class Changelog
 {
     public static readonly IReadOnlyList<ChangelogEntry> Entries =
     [
+        new("0.4.0.0", new DateOnly(2026, 11, 26),
+        [
+            "Full HTML report: Reports, then Open HTML report, opens one page in your browser with every figure, chart and table, its own date presets, custom dates, grouping and Free Company filter, a donut of what the gil came from, sortable and searchable voyages with their loot, and the payback chart",
+            "The report is a single file with nothing to install or download, works offline, and has a light and a dark look; it is saved in Documents\\SubLedger so you can keep or share it",
+            "Lifetime now starts at your earliest spending as well as your first voyage, so parts and plots bought before the first voyage are included",
+            "Fixed: with several Free Companies, a hand-kept total for one company was left out of the combined view on days another company recorded voyages",
+        ]),
         new("0.3.0.0", new DateOnly(2026, 11, 26),
         [
             "New Expenses page: enter what you spent, as one-off investments (submarine parts, your Free Company house, the plot) or running costs (ceruleum tanks, repair materials), with quantity and price each, so \"3 x Shark-class Bow at 4m\" is one entry",

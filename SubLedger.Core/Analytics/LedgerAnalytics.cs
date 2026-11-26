@@ -33,18 +33,24 @@ public sealed record DayTotal(DateOnly Date)
     public long CapturedGil { get; init; }
     public int Voyages { get; init; }
 
-    /// <summary>Hand-kept total for this day, if one was imported or typed in.</summary>
+    /// <summary>Hand-kept totals for this day, if any were imported or typed in.</summary>
     public long ManualGil { get; init; }
     public bool HasManual { get; init; }
+
+    /// <summary>
+    /// The part of <see cref="ManualGil"/> that does not count, because the same Free Company has recorded voyages
+    /// that day. The voyages win, Free Company by Free Company.
+    /// </summary>
+    public long ExcludedManualGil { get; init; }
 
     /// <summary>Corrections for this day; always counted.</summary>
     public long AdjustmentGil { get; init; }
 
-    /// <summary>True when the day has both recorded voyages and a hand-kept total. The voyages win.</summary>
-    public bool ManualExcluded => HasManual && Voyages > 0;
+    /// <summary>True when some hand-kept total for this day is set aside in favour of recorded voyages.</summary>
+    public bool ManualExcluded { get; init; }
 
-    /// <summary>The day's income: recorded voyages if there are any, otherwise the hand-kept total, plus corrections.</summary>
-    public long IncomeGil => (Voyages > 0 ? CapturedGil : ManualGil) + AdjustmentGil;
+    /// <summary>The day's income: recorded voyages, the hand-kept totals that still count, and corrections.</summary>
+    public long IncomeGil => CapturedGil + ManualGil - ExcludedManualGil + AdjustmentGil;
 }
 
 public sealed record LedgerSummary
@@ -102,12 +108,20 @@ public static class LedgerAnalytics
     {
         var days = new SortedDictionary<DateOnly, DayTotal>();
 
+        // Which Free Companies recorded voyages on which days. A hand-kept total is set aside only when its own Free
+        // Company recorded voyages that day, so in the combined view one company's voyages never hide another's
+        // hand-kept history. A total not tied to any Free Company gives way to voyages from any of them.
+        var voyageDays = new HashSet<(ulong Fc, DateOnly Date)>();
+        var anyVoyageDays = new HashSet<DateOnly>();
+
         foreach (var v in voyages)
         {
             if (v.Deleted || (fcId != 0 && v.FcId != fcId))
                 continue;
 
             var date = calendar.DateOf(v.CollectedUnix);
+            voyageDays.Add((v.FcId, date));
+            anyVoyageDays.Add(date);
             var day = days.GetValueOrDefault(date) ?? new DayTotal(date);
             days[date] = day with { CapturedGil = day.CapturedGil + v.TotalGil, Voyages = day.Voyages + 1 };
         }
@@ -119,13 +133,23 @@ public static class LedgerAnalytics
             if (e.Deleted || (fcId != 0 && e.FcId != fcId) || ExpenseCategories.IsCost(e.Kind))
                 continue;
 
-            var day = days.GetValueOrDefault(e.BusinessDate) ?? new DayTotal(e.BusinessDate);
-            days[e.BusinessDate] = e.Kind switch
+            var date = e.BusinessDate;
+            var day = days.GetValueOrDefault(date) ?? new DayTotal(date);
+            if (e.Kind == LedgerEntryKind.HistoricalDay)
             {
-                LedgerEntryKind.HistoricalDay => day with { ManualGil = day.ManualGil + e.AmountGil, HasManual = true },
-                LedgerEntryKind.Adjustment => day with { AdjustmentGil = day.AdjustmentGil + e.AmountGil },
-                _ => day,
-            };
+                var setAside = e.FcId == 0 ? anyVoyageDays.Contains(date) : voyageDays.Contains((e.FcId, date));
+                days[date] = day with
+                {
+                    ManualGil = day.ManualGil + e.AmountGil,
+                    ExcludedManualGil = day.ExcludedManualGil + (setAside ? e.AmountGil : 0),
+                    ManualExcluded = day.ManualExcluded || setAside,
+                    HasManual = true,
+                };
+            }
+            else if (e.Kind == LedgerEntryKind.Adjustment)
+            {
+                days[date] = day with { AdjustmentGil = day.AdjustmentGil + e.AmountGil };
+            }
         }
 
         return days;

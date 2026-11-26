@@ -14,6 +14,7 @@ using SubLedger.Core.Analytics;
 using SubLedger.Core.Capture;
 using SubLedger.Core.Export;
 using SubLedger.Core.Model;
+using SubLedger.Core.Report;
 using SubLedger.Core.Import;
 using SubLedger.Core.Storage;
 using SubLedger.Game;
@@ -324,6 +325,31 @@ public sealed class Plugin : IDalamudPlugin
             }
         });
     }
+
+    /// <summary>Writes the self-contained HTML report and opens it in the default browser.</summary>
+    public void OpenHtmlReport(DateRange range, RangePreset preset, PeriodGrouping grouping)
+        => RunExport("HTML report", () =>
+        {
+            var calendar = Calendar;
+            var today = calendar.Today(DateTimeOffset.Now);
+            byte[]? logo = null;
+            try
+            {
+                var directory = Service.PluginInterface.AssemblyLocation.Directory?.FullName ?? string.Empty;
+                logo = File.ReadAllBytes(Path.Combine(directory, "Assets", "logo-small.png"));
+            }
+            catch (Exception ex)
+            {
+                Log.Debug("Export", $"Report logo not found: {ex.Message}");
+            }
+
+            var html = HtmlReport.Build(Store.Snapshot(), calendar, today, new ReportStart(range, preset, grouping, Config.SelectedFreeCompany), Version, logo, DateTimeOffset.Now);
+            var name = $"SubLedger report {today:yyyy-MM-dd}.html";
+            var path = Path.Combine(ExportDirectory, name);
+            File.WriteAllText(path, html, new UTF8Encoding(false));
+            Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
+            return $"{name} written to {ExportDirectory} and opened in your browser";
+        });
 
     public void OpenExportFolder()
     {

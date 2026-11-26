@@ -1,0 +1,915 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>__TITLE__</title>
+<style>
+:root {
+  color-scheme: dark;
+  --page: #060b12;
+  --card: #0e1825;
+  --card-2: #13202f;
+  --line: #1c2a3b;
+  --hair: #182434;
+  --axis: #2a3b50;
+  --text: #edf2f7;
+  --text-2: #b6c2d0;
+  --text-3: #7f8fa3;
+  --gold: #ecc161;
+  --gold-mark: #c4943a;
+  --teal-mark: #1f9aa3;
+  --teal: #41ccd1;
+  --mint: #70db9e;
+  --amber: #f5ab4a;
+  --rose: #f16b7d;
+  --violet: #a885f5;
+  --wash: rgba(31, 154, 163, 0.10);
+  --slot-1: #338ced; --slot-2: #e76624; --slot-3: #00a888; --slot-4: #d28e05; --slot-5: #e24d8b; --slot-6: #0aac23;
+  --shadow: 0 1px 0 rgba(255,255,255,0.03) inset;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    color-scheme: light;
+    --page: #f4f6f9; --card: #ffffff; --card-2: #f2f5f9; --line: #e2e7ee; --hair: #edf0f4; --axis: #c9d1dc;
+    --text: #141a22; --text-2: #3f4b5a; --text-3: #6b7787;
+    --gold: #8a6214; --teal: #11727a; --mint: #1e7a45; --amber: #9a5b06; --rose: #b4283c; --violet: #5b3cc4;
+    --wash: rgba(31, 154, 163, 0.12);
+    --slot-1: #257de0; --slot-2: #f47230; --slot-3: #00b894; --slot-4: #f2a600; --slot-5: #ee7fac; --slot-6: #008a17;
+    --shadow: 0 1px 2px rgba(16,24,40,0.05);
+  }
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+  --page: #f4f6f9; --card: #ffffff; --card-2: #f2f5f9; --line: #e2e7ee; --hair: #edf0f4; --axis: #c9d1dc;
+  --text: #141a22; --text-2: #3f4b5a; --text-3: #6b7787;
+  --gold: #8a6214; --teal: #11727a; --mint: #1e7a45; --amber: #9a5b06; --rose: #b4283c; --violet: #5b3cc4;
+  --wash: rgba(31, 154, 163, 0.12);
+  --slot-1: #257de0; --slot-2: #f47230; --slot-3: #00b894; --slot-4: #f2a600; --slot-5: #ee7fac; --slot-6: #008a17;
+  --shadow: 0 1px 2px rgba(16,24,40,0.05);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--page); color: var(--text);
+  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+.wrap { max-width: 1240px; margin: 0 auto; padding: 0 20px 48px; }
+header.top {
+  display: flex; align-items: center; gap: 14px; padding: 22px 0 16px;
+  border-bottom: 1px solid var(--line); margin-bottom: 18px;
+}
+header.top img { width: 52px; height: 52px; }
+header.top h1 { margin: 0; font-size: 24px; font-weight: 650; letter-spacing: 0.2px; }
+header.top h1 .gold { color: var(--gold); }
+header.top .sub { color: var(--text-3); font-size: 13px; }
+header.top .spacer { flex: 1; }
+button, select, input {
+  font: inherit; color: var(--text); background: var(--card); border: 1px solid var(--line);
+  border-radius: 8px; padding: 6px 11px;
+}
+button { cursor: pointer; }
+button:hover, select:hover, input:hover { border-color: var(--axis); }
+button:focus-visible, select:focus-visible, input:focus-visible, .pill:focus-visible, th:focus-visible, tr:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+.filters {
+  position: sticky; top: 0; z-index: 5; background: color-mix(in srgb, var(--page) 92%, transparent);
+  backdrop-filter: blur(6px); padding: 10px 0 12px; margin-bottom: 8px; border-bottom: 1px solid var(--line);
+  display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center;
+}
+.filters .group { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.filters label { color: var(--text-3); font-size: 13px; }
+.pill {
+  border-radius: 999px; padding: 4px 12px; font-size: 13px; color: var(--text-3); background: var(--card);
+  border: 1px solid var(--line); cursor: pointer; user-select: none;
+}
+.pill.on { color: var(--gold); border-color: color-mix(in srgb, var(--gold) 55%, transparent); background: color-mix(in srgb, var(--gold) 12%, var(--card)); }
+.pill.teal.on { color: var(--teal); border-color: color-mix(in srgb, var(--teal) 55%, transparent); background: color-mix(in srgb, var(--teal) 12%, var(--card)); }
+input[type="date"] { padding: 4px 8px; }
+.scope { color: var(--text-3); font-size: 13px; margin: 4px 0 14px; }
+.tiles { display: grid; grid-template-columns: repeat(var(--cols, 4), minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }
+@media (max-width: 900px) { .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.tile {
+  background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px 12px;
+  position: relative; box-shadow: var(--shadow); min-height: 98px;
+}
+.tile::before { content: ""; position: absolute; left: 14px; top: 0; width: 32px; height: 3px; border-radius: 2px; background: var(--accent, var(--gold)); }
+.tile .k { font-size: 11.5px; letter-spacing: 0.6px; text-transform: uppercase; color: var(--text-3); }
+.tile .v { font-size: 27px; font-weight: 640; margin-top: 4px; letter-spacing: 0.2px; }
+.tile .d { font-size: 12.5px; color: var(--text-3); }
+.card {
+  background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; margin-bottom: 14px;
+  box-shadow: var(--shadow);
+}
+.card h2 { margin: 0; font-size: 17px; font-weight: 620; }
+.card .note { color: var(--text-3); font-size: 13px; margin: 2px 0 10px; }
+.card-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; justify-content: space-between; margin-bottom: 6px; }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media (max-width: 900px) { .row2 { grid-template-columns: 1fr; } }
+.chart { width: 100%; position: relative; }
+.chart svg { display: block; width: 100%; overflow: visible; }
+.chart text { fill: var(--text-3); font-size: 11.5px; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12.5px; color: var(--text-2); margin: 2px 0 8px; }
+.legend .key { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -1px; margin-right: 6px; }
+.legend .line { display: inline-block; width: 16px; height: 2px; vertical-align: 3px; margin-right: 6px; }
+#tip {
+  position: fixed; pointer-events: none; z-index: 20; display: none; min-width: 160px; max-width: 320px;
+  background: var(--card-2); border: 1px solid var(--axis); border-radius: 8px; padding: 9px 11px;
+  font-size: 12.5px; color: var(--text-2); box-shadow: 0 6px 24px rgba(0,0,0,0.35);
+}
+#tip b { display: block; color: var(--text); font-size: 15px; margin: 2px 0; }
+table { width: 100%; border-collapse: collapse; font-size: 13.5px; font-variant-numeric: tabular-nums; }
+th { text-align: left; font-size: 11.5px; letter-spacing: 0.5px; text-transform: uppercase; color: var(--text-3); font-weight: 600; padding: 8px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th.sort { cursor: pointer; }
+th.sort:hover { color: var(--text-2); }
+th .arrow { opacity: 0.8; }
+td { padding: 7px 8px; border-bottom: 1px solid var(--hair); }
+td.num, th.num { text-align: right; }
+td.gold { color: var(--gold); }
+td.teal { color: var(--teal); }
+td.dim { color: var(--text-3); }
+tr.click { cursor: pointer; }
+tr.click:hover td { background: color-mix(in srgb, var(--teal) 6%, transparent); }
+tr.loot td { background: var(--card-2); color: var(--text-2); font-size: 13px; }
+.scroll { max-height: 440px; overflow: auto; }
+.ranked .r { display: grid; grid-template-columns: minmax(90px, 30%) 1fr auto; gap: 10px; align-items: center; padding: 5px 0; }
+.ranked .name { color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ranked .bar { height: 12px; border-radius: 0 4px 4px 0; background: var(--gold-mark); min-width: 2px; }
+.ranked .val { color: var(--text-2); font-variant-numeric: tabular-nums; font-size: 13px; white-space: nowrap; }
+.donut-wrap { display: grid; grid-template-columns: 220px 1fr; gap: 18px; align-items: center; }
+@media (max-width: 600px) { .donut-wrap { grid-template-columns: 1fr; justify-items: center; } }
+.donut-legend { width: 100%; }
+.donut-legend .r { display: grid; grid-template-columns: 14px 1fr auto auto; gap: 8px; align-items: center; padding: 4px 0; font-size: 13.5px; border-bottom: 1px solid var(--hair); }
+.donut-legend .sw { width: 12px; height: 12px; border-radius: 3px; }
+.donut-legend .share { color: var(--text-3); min-width: 48px; text-align: right; font-variant-numeric: tabular-nums; }
+.meter { height: 10px; border-radius: 6px; background: color-mix(in srgb, var(--accent) 18%, var(--card)); position: relative; margin: 10px 0 4px; }
+.meter i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 6px; background: var(--accent); }
+.meter u { position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--text); }
+.headline { font-size: 24px; font-weight: 640; }
+.tools { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.pager { display: flex; gap: 8px; align-items: center; justify-content: flex-end; margin-top: 8px; color: var(--text-3); font-size: 13px; }
+.empty { color: var(--text-3); padding: 24px 4px; }
+footer { color: var(--text-3); font-size: 12.5px; margin-top: 26px; border-top: 1px solid var(--line); padding-top: 14px; }
+.hidden { display: none !important; }
+@media print {
+  .filters, #themeBtn, .pager, .tools input { display: none !important; }
+  body { background: #fff; }
+  .card, .tile { break-inside: avoid; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <img src="__LOGO__" alt="">
+    <div>
+      <h1>Sub<span class="gold">Ledger</span> report</h1>
+      <div class="sub" id="generated"></div>
+    </div>
+    <div class="spacer"></div>
+    <button id="themeBtn" type="button" title="Switch between dark and light">Light mode</button>
+  </header>
+
+  <div class="filters" id="filters">
+    <div class="group" id="fcGroup"><label for="fcSelect">Free Company</label><select id="fcSelect"></select></div>
+    <div class="group" id="presets"></div>
+    <div class="group"><label for="from">From</label><input type="date" id="from"><label for="to">to</label><input type="date" id="to"></div>
+    <div class="group" id="grouping"><label>Group by</label></div>
+  </div>
+
+  <div class="scope" id="scope"></div>
+  <div id="content"></div>
+
+  <footer id="footer"></footer>
+</div>
+<div id="tip" role="tooltip"></div>
+
+<script id="ledger-data" type="application/json">__SUBLEDGER_DATA__</script>
+<script>
+"use strict";
+(function () {
+  const DATA = JSON.parse(document.getElementById("ledger-data").textContent);
+  const DAY_MS = 86400000;
+
+  // ---------- formatting ----------
+  const nf = new Intl.NumberFormat("en-US");
+  const exact = (n) => nf.format(Math.trunc(n));
+  function short(n) {
+    const a = Math.abs(n);
+    if (a < 10000) return exact(n);
+    const scaled = (v, s) => {
+      const x = n / v, ax = Math.abs(x);
+      const t = ax >= 100 ? x.toFixed(0) : ax >= 10 ? (Math.round(x * 10) / 10).toString() : (Math.round(x * 100) / 100).toString();
+      return t + s;
+    };
+    if (a < 999500) return scaled(1e3, "k");
+    if (a < 999500000) return scaled(1e6, "m");
+    return scaled(1e9, "b");
+  }
+  const pct = (x) => (x * 100 >= 10 ? Math.round(x * 100) : Math.round(x * 1000) / 10) + "%";
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const plural = (n, w) => exact(n) + " " + w + (n === 1 ? "" : "s");
+
+  // ---------- dates as whole days since 1970 (UTC, so no time zone can shift them) ----------
+  const toNum = (s) => { const p = s.split("-").map(Number); return Date.UTC(p[0], p[1] - 1, p[2]) / DAY_MS; };
+  const toStr = (n) => new Date(n * DAY_MS).toISOString().slice(0, 10);
+  const dateOf = (n) => new Date(n * DAY_MS);
+  const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const MONTHS_LONG = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  const fmtDay = (n) => { const d = dateOf(n); return d.getUTCDate() + " " + MONTHS[d.getUTCMonth()] + " " + d.getUTCFullYear(); };
+  const fmtLong = (n) => { const d = dateOf(n); return WEEKDAYS[d.getUTCDay()] + ", " + d.getUTCDate() + " " + MONTHS_LONG[d.getUTCMonth()] + " " + d.getUTCFullYear(); };
+  const startOfWeek = (n) => n - ((dateOf(n).getUTCDay() + 6) % 7);
+  const startOfMonth = (n) => { const d = dateOf(n); return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1) / DAY_MS; };
+  const addMonths = (n, k) => { const d = dateOf(n); return Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + k, d.getUTCDate()) / DAY_MS; };
+  const startOfQuarter = (n) => { const d = dateOf(n); return Date.UTC(d.getUTCFullYear(), Math.floor(d.getUTCMonth() / 3) * 3, 1) / DAY_MS; };
+
+  // ---------- the ledger, unpacked ----------
+  const TODAY = toNum(DATA.today);
+  const companies = DATA.companies;
+  const subs = DATA.subs;
+  const items = DATA.items;
+  const voyages = DATA.voyages.map((v) => ({
+    day: toNum(v[0]), time: v[1], unix: v[2], sub: v[3], fc: subs[v[3]].fc, route: v[4], gil: v[5],
+    loot: v[6].map((l) => ({ item: l[0], qty: l[1], gil: l[2] })),
+  }));
+  const entries = DATA.entries.map((e) => ({ day: toNum(e[0]), fc: e[1], kind: e[2], gil: e[3], category: e[4], note: e[5] }));
+
+  // ---------- state ----------
+  const state = {
+    fc: DATA.initial.fc,
+    from: toNum(DATA.initial.from),
+    to: toNum(DATA.initial.to),
+    preset: DATA.initial.preset || "custom",
+    group: DATA.initial.group,
+    chart: "period",
+    breakdown: "items",
+    search: "",
+    sortKey: "when",
+    sortDir: -1,
+    page: 0,
+    open: -1,
+  };
+
+  const inFc = (fc) => state.fc < 0 || fc === state.fc;
+
+  // ---------- calculations (the same rules as the plugin) ----------
+  // Income per ledger day for the chosen Free Company. A hand-kept total gives way to recorded voyages from its own
+  // Free Company that day (or from any, when it belongs to none); corrections always count.
+  function daily() {
+    const days = new Map();
+    const get = (d) => { let x = days.get(d); if (!x) { x = { day: d, cap: 0, voy: 0, man: 0, excl: 0, adj: 0, hasMan: false }; days.set(d, x); } return x; };
+    const voyageDays = new Set(), anyDays = new Set();
+    for (const v of voyages) {
+      if (!inFc(v.fc)) continue;
+      voyageDays.add(v.fc + ":" + v.day); anyDays.add(v.day);
+      const x = get(v.day); x.cap += v.gil; x.voy++;
+    }
+    for (const e of entries) {
+      if (e.kind !== "hand" && e.kind !== "adj") continue;
+      if (state.fc >= 0 && e.fc !== state.fc) continue;
+      const x = get(e.day);
+      if (e.kind === "hand") {
+        const aside = e.fc < 0 ? anyDays.has(e.day) : voyageDays.has(e.fc + ":" + e.day);
+        x.man += e.gil; x.hasMan = true; if (aside) x.excl += e.gil;
+      } else x.adj += e.gil;
+    }
+    for (const x of days.values()) x.income = x.cap + x.man - x.excl + x.adj;
+    return days;
+  }
+
+  function costsFor() {
+    return entries.filter((e) => (e.kind === "inv" || e.kind === "run") && (state.fc < 0 || e.fc === state.fc));
+  }
+
+  function median(sorted) {
+    if (!sorted.length) return 0;
+    const m = Math.floor(sorted.length / 2);
+    return sorted.length % 2 ? sorted[m] : Math.trunc((sorted[m - 1] + sorted[m]) / 2);
+  }
+
+  // Gil per 24 hours of real time, measured from each submarine's previous collection to the next.
+  function groupStats(list, keyOf, labelOf) {
+    const bySub = new Map();
+    for (const v of list) { const k = v.sub; (bySub.get(k) || bySub.set(k, []).get(k)).push(v); }
+    const groups = new Map();
+    const g = (k, label) => { let x = groups.get(k); if (!x) { x = { key: k, label, voyages: 0, total: 0, rateGil: 0, rateSec: 0 }; groups.set(k, x); } return x; };
+    for (const vs of bySub.values()) {
+      vs.sort((a, b) => a.unix - b.unix);
+      vs.forEach((v, i) => {
+        const x = g(keyOf(v), labelOf(v));
+        x.voyages++; x.total += v.gil;
+        if (i > 0) { const cycle = v.unix - vs[i - 1].unix; if (cycle > 0 && cycle <= 4 * 86400) { x.rateGil += v.gil; x.rateSec += cycle; } }
+      });
+    }
+    return [...groups.values()].map((x) => ({ ...x, per: x.voyages ? Math.trunc(x.total / x.voyages) : 0, per24: x.rateSec ? Math.trunc(x.rateGil * 86400 / x.rateSec) : 0 }))
+      .sort((a, b) => b.total - a.total);
+  }
+
+  function periods(days, from, to, group, covered) {
+    const out = [];
+    let cursor = from;
+    while (cursor <= to) {
+      let start = cursor, end;
+      if (group === "week") { start = startOfWeek(cursor); end = start + 6; }
+      else if (group === "month") { start = startOfMonth(cursor); end = addMonths(start, 1) - 1; }
+      else if (group === "quarter") { start = startOfQuarter(cursor); end = addMonths(start, 3) - 1; }
+      else end = start;
+      end = Math.min(end, to);
+      const a = Math.max(start, from);
+      let income = 0, voy = 0, rec = 0;
+      for (let d = a; d <= end; d++) {
+        const x = days.get(d); if (!x) continue;
+        income += x.income; voy += x.voy; if (covered && d >= covered[0] && d <= covered[1]) rec++;
+      }
+      const cov = covered ? Math.max(0, Math.min(end, covered[1]) - Math.max(a, covered[0]) + 1) : 0;
+      const d0 = dateOf(a);
+      let label, groupLabel, title;
+      if (group === "day") { label = String(d0.getUTCDate()); groupLabel = MONTHS[d0.getUTCMonth()]; title = fmtLong(a); }
+      else if (group === "week") { label = d0.getUTCDate() + " " + MONTHS[d0.getUTCMonth()]; groupLabel = String(d0.getUTCFullYear()); title = d0.getUTCDate() + " " + MONTHS[d0.getUTCMonth()] + " to " + fmtDay(end); }
+      else if (group === "month") { label = MONTHS[d0.getUTCMonth()]; groupLabel = String(d0.getUTCFullYear()); title = MONTHS_LONG[d0.getUTCMonth()] + " " + d0.getUTCFullYear(); }
+      else { const q = Math.floor(d0.getUTCMonth() / 3) + 1; label = "Q" + q; groupLabel = String(d0.getUTCFullYear()); title = "Q" + q + " " + d0.getUTCFullYear(); }
+      out.push({ from: a, to: end, income, voyages: voy, recorded: rec, days: cov, label, group: groupLabel, title });
+      cursor = end + 1;
+    }
+    return out;
+  }
+
+  function compute() {
+    const days = daily();
+    const keys = [...days.keys()].sort((a, b) => a - b);
+    const first = keys.length ? keys[0] : null;
+    const from = state.from, to = state.to;
+
+    const inRange = keys.filter((d) => d >= from && d <= to).map((d) => days.get(d));
+    const covered = first === null ? null : [Math.max(from, first), Math.min(to, TODAY)];
+    const coveredOk = covered && covered[0] <= covered[1];
+    const coveredDays = coveredOk ? covered[1] - covered[0] + 1 : 0;
+    const recordedCovered = coveredOk ? inRange.filter((x) => x.day >= covered[0] && x.day <= covered[1]).length : 0;
+    const total = inRange.reduce((s, x) => s + x.income, 0);
+    const incomes = inRange.map((x) => x.income).sort((a, b) => a - b);
+    const rangeVoyages = voyages.filter((v) => inFc(v.fc) && v.day >= from && v.day <= to);
+    const best = inRange.reduce((b, x) => (!b || x.income > b.income ? x : b), null);
+    const worst = inRange.reduce((b, x) => (!b || x.income < b.income ? x : b), null);
+
+    const costs = costsFor();
+    const runIn = costs.filter((e) => e.kind === "run" && e.day >= from && e.day <= to).reduce((s, e) => s + e.gil, 0);
+    const invIn = costs.filter((e) => e.kind === "inv" && e.day >= from && e.day <= to).reduce((s, e) => s + e.gil, 0);
+    const captured = inRange.reduce((s, x) => s + x.cap, 0);
+
+    // Items.
+    const itemMap = new Map();
+    for (const v of rangeVoyages) for (const l of v.loot) {
+      const x = itemMap.get(l.item) || { name: items[l.item], qty: 0, gil: 0 };
+      x.qty += l.qty; x.gil += l.gil; itemMap.set(l.item, x);
+    }
+    const byItem = [...itemMap.values()].sort((a, b) => b.gil - a.gil);
+
+    return {
+      days, first, inRange, covered: coveredOk ? covered : null, coveredDays,
+      total, voyages: rangeVoyages.length, rangeVoyages,
+      recorded: inRange.length, zero: inRange.filter((x) => x.income === 0).length,
+      missing: Math.max(0, coveredDays - recordedCovered),
+      avgDay: coveredDays ? Math.trunc(total / coveredDays) : 0,
+      avgRecorded: inRange.length ? Math.trunc(total / inRange.length) : 0,
+      median: median(incomes),
+      perVoyage: rangeVoyages.length ? Math.trunc(rangeVoyages.reduce((s, v) => s + v.gil, 0) / rangeVoyages.length) : 0,
+      best, worst, runIn, invIn, manual: total - captured,
+      periods: periods(days, from, to, state.group, coveredOk ? covered : null),
+      bySub: groupStats(rangeVoyages, (v) => v.sub, (v) => subs[v.sub].name + (state.fc < 0 && companies.length > 1 ? " · " + companies[v.fc].name : "")),
+      byRoute: groupStats(rangeVoyages, (v) => v.route || "?", (v) => v.route || "?"),
+      byItem,
+      finance: finance(days, costs),
+    };
+  }
+
+  // Payback: when income after running costs caught up with everything invested.
+  function finance(days, costs) {
+    const invested = costs.filter((e) => e.kind === "inv").reduce((s, e) => s + e.gil, 0);
+    const running = costs.filter((e) => e.kind === "run").reduce((s, e) => s + e.gil, 0);
+    let income = 0; for (const x of days.values()) if (x.day <= TODAY) income += x.income;
+    const invBy = new Map(), runBy = new Map();
+    for (const e of costs) { const m = e.kind === "inv" ? invBy : runBy; m.set(e.day, (m.get(e.day) || 0) + e.gil); }
+    const starts = [];
+    if (days.size) starts.push(Math.min(...days.keys()));
+    if (costs.length) starts.push(Math.min(...costs.map((e) => e.day)));
+    const timeline = [];
+    let paidOn = null;
+    if (starts.length) {
+      let net = 0, spent = 0, above = false;
+      for (let d = Math.min(...starts); d <= TODAY; d++) {
+        const x = days.get(d); if (x) net += x.income;
+        net -= runBy.get(d) || 0; spent += invBy.get(d) || 0;
+        timeline.push({ day: d, net, spent });
+        const now = spent > 0 && net >= spent;
+        if (now && !above) paidOn = d;
+        above = now;
+      }
+      if (!above) paidOn = null;
+    }
+    const from30 = TODAY - 29;
+    const firstT = timeline.length ? timeline[0].day : TODAY;
+    const windowDays = Math.max(1, TODAY - Math.max(firstT, from30) + 1);
+    let inc30 = 0; for (const x of days.values()) if (x.day >= from30 && x.day <= TODAY) inc30 += x.income;
+    const run30 = costs.filter((e) => e.kind === "run" && e.day >= from30 && e.day <= TODAY).reduce((s, e) => s + e.gil, 0);
+    const perDay = Math.trunc((inc30 - run30) / windowDays);
+    let projected = null;
+    const remaining = invested - (income - running);
+    if (invested > 0 && paidOn === null && remaining > 0 && perDay > 0) {
+      const toGo = Math.ceil(remaining / perDay);
+      if (toGo <= 3650) projected = TODAY + toGo;
+    }
+    const cats = new Map();
+    for (const e of costs) {
+      const k = (e.category || "Uncategorised") + "|" + e.kind;
+      const x = cats.get(k) || { name: e.category || "Uncategorised", kind: e.kind, total: 0, count: 0 };
+      x.total += e.gil; x.count++; cats.set(k, x);
+    }
+    return {
+      invested, running, income, net: income - running, profit: income - running - invested,
+      share: invested > 0 ? (income - running) / invested : null, paidOn, projected, perDay, timeline,
+      categories: [...cats.values()].sort((a, b) => b.total - a.total), costs,
+    };
+  }
+
+  // ---------- charts ----------
+  const tip = document.getElementById("tip");
+  function showTip(html, ev) {
+    tip.innerHTML = html; tip.style.display = "block";
+    const pad = 14, w = tip.offsetWidth, h = tip.offsetHeight;
+    let x = ev.clientX + pad, y = ev.clientY + pad;
+    if (x + w > innerWidth - 8) x = ev.clientX - w - pad;
+    if (y + h > innerHeight - 8) y = ev.clientY - h - pad;
+    tip.style.left = x + "px"; tip.style.top = y + "px";
+  }
+  const hideTip = () => { tip.style.display = "none"; };
+
+  // Three to five equal steps of a round size that reach the largest value with the least empty space above it.
+  function niceScale(max) {
+    if (max <= 4) return { step: 1, steps: 4 };
+    const mag = Math.pow(10, Math.floor(Math.log10(max)));
+    let best = { step: mag * 10, steps: 3 }, bestTop = Infinity;
+    for (const scale of [mag / 10, mag, mag * 10]) for (const m of [1, 2, 2.5, 5]) {
+      const step = Math.round(scale * m); if (step < 1) continue;
+      const steps = Math.ceil(max / step); if (steps < 3 || steps > 5) continue;
+      if (step * steps < bestTop) { bestTop = step * steps; best = { step, steps }; }
+    }
+    return best;
+  }
+
+  const SVGNS = "http://www.w3.org/2000/svg";
+  function svgEl(tag, attrs, parent) {
+    const el = document.createElementNS(SVGNS, tag);
+    for (const k in attrs) el.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(el);
+    return el;
+  }
+  const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+  // A frame with a value axis, solid hairline guides and time labels, shared by every time chart.
+  function frame(host, points, max, height) {
+    host.innerHTML = "";
+    const W = Math.max(280, host.clientWidth), H = height;
+    const { step, steps } = niceScale(Math.max(1, max));
+    const top = step * steps;
+    const svg = svgEl("svg", { viewBox: `0 0 ${W} ${H}`, height: H, role: "img" }, host);
+    const axisW = Math.max(36, short(top).length * 7 + 12);
+    const P = { l: axisW, r: W - 4, t: 8, b: H - 22 };
+    for (let i = 0; i <= steps; i++) {
+      const y = P.b - (P.b - P.t) * i / steps;
+      svgEl("line", { x1: P.l, x2: P.r, y1: y, y2: y, stroke: i === 0 ? css("--axis") : css("--hair"), "stroke-width": 1 }, svg);
+      const t = svgEl("text", { x: P.l - 8, y: y + 4, "text-anchor": "end" }, svg); t.textContent = short(step * i);
+    }
+    const slot = (P.r - P.l) / points.length;
+    const every = Math.max(1, Math.ceil(64 / slot));
+    let lastGroup = "";
+    for (let i = 0; i < points.length; i += every) {
+      const p = points[i];
+      const isNew = p.group && p.group !== lastGroup; lastGroup = p.group || lastGroup;
+      const label = isNew ? (p.group + " " + p.label).trim() : p.label;
+      if (!label) continue;
+      const x = Math.min(Math.max(P.l + slot * (i + 0.5), P.l + 16), P.r - 16);
+      const t = svgEl("text", { x, y: H - 5, "text-anchor": "middle" }, svg); t.textContent = label;
+      if (isNew) t.setAttribute("fill", css("--text-2"));
+    }
+    const X = (i) => P.l + slot * (i + 0.5);
+    const Y = (v) => P.b - (P.b - P.t) * Math.max(0, Math.min(v, top)) / top;
+    return { svg, P, slot, X, Y, W, H };
+  }
+
+  function hoverLayer(f, count, onTip) {
+    const band = svgEl("rect", { x: 0, y: f.P.t, width: f.slot, height: f.P.b - f.P.t, fill: css("--teal-mark"), opacity: 0, "pointer-events": "none" }, f.svg);
+    const hit = svgEl("rect", { x: f.P.l, y: 0, width: f.P.r - f.P.l, height: f.H, fill: "transparent" }, f.svg);
+    hit.addEventListener("mousemove", (ev) => {
+      const r = f.svg.getBoundingClientRect();
+      const x = (ev.clientX - r.left) * (f.W / r.width);
+      const i = Math.max(0, Math.min(count - 1, Math.floor((x - f.P.l) / f.slot)));
+      band.setAttribute("x", f.P.l + f.slot * i); band.setAttribute("opacity", 0.08);
+      showTip(onTip(i), ev);
+    });
+    hit.addEventListener("mouseleave", () => { band.setAttribute("opacity", 0); hideTip(); });
+  }
+
+  function barChart(host, points, line, lineName) {
+    let max = 1;
+    for (const p of points) max = Math.max(max, p.value);
+    if (line) for (const v of line) max = Math.max(max, v);
+    const f = frame(host, points, max, 280);
+    const width = Math.max(1.5, Math.min(f.slot - 2, 24));
+    points.forEach((p, i) => {
+      const x = f.X(i);
+      if (p.missing) { svgEl("circle", { cx: x, cy: f.P.b - 5, r: 2.5, fill: "none", stroke: css("--text-3") }, f.svg); return; }
+      const y = Math.min(f.Y(p.value), f.P.b - 2), h = f.P.b - y, r = Math.min(4, width / 2);
+      svgEl("path", { d: `M${x - width / 2},${f.P.b} V${y + r} Q${x - width / 2},${y} ${x - width / 2 + r},${y} H${x + width / 2 - r} Q${x + width / 2},${y} ${x + width / 2},${y + r} V${f.P.b} Z`, fill: css("--gold-mark") }, f.svg);
+    });
+    if (line) {
+      const d = line.map((v, i) => (i ? "L" : "M") + f.X(i).toFixed(1) + "," + f.Y(v).toFixed(1)).join(" ");
+      svgEl("path", { d, fill: "none", stroke: css("--teal-mark"), "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" }, f.svg);
+    }
+    hoverLayer(f, points.length, (i) => {
+      const p = points[i];
+      let h = esc(p.title) + (p.missing ? "<div>No record</div>" : "<b>" + exact(p.value) + " gil</b>");
+      if (line) h += "<div>" + esc(lineName) + ": " + exact(line[i]) + " gil</div>";
+      if (p.detail) h += "<div>" + esc(p.detail) + "</div>";
+      return h;
+    });
+  }
+
+  function lineChart(host, points, series) {
+    let max = 1;
+    for (const s of series) for (const v of s.values) max = Math.max(max, v);
+    const f = frame(host, points, max, 280);
+    for (const s of series) {
+      const d = s.values.map((v, i) => (i ? "L" : "M") + f.X(i).toFixed(1) + "," + f.Y(v).toFixed(1)).join(" ");
+      if (s.wash) svgEl("path", { d: d + ` L${f.X(s.values.length - 1)},${f.P.b} L${f.X(0)},${f.P.b} Z`, fill: s.color, opacity: 0.1 }, f.svg);
+      svgEl("path", { d, fill: "none", stroke: s.color, "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" }, f.svg);
+      const last = s.values.length - 1;
+      svgEl("circle", { cx: f.X(last), cy: f.Y(s.values[last]), r: 6, fill: css("--card") }, f.svg);
+      svgEl("circle", { cx: f.X(last), cy: f.Y(s.values[last]), r: 4, fill: s.color }, f.svg);
+    }
+    // End labels, nudged apart only when they would overlap.
+    const placed = [];
+    [...series].sort((a, b) => b.values[b.values.length - 1] - a.values[a.values.length - 1]).forEach((s) => {
+      const last = s.values.length - 1;
+      let y = Math.max(f.P.t + 10, f.Y(s.values[last]) - 10);
+      for (const o of placed) if (Math.abs(o - y) < 15) y = o + 15;
+      placed.push(y);
+      const t = svgEl("text", { x: f.X(last) - 10, y, "text-anchor": "end", fill: css("--text") }, f.svg); t.textContent = short(s.values[last]);
+    });
+    hoverLayer(f, points.length, (i) => {
+      let h = esc(points[i].title);
+      for (const s of series) h += "<div>" + esc(s.name) + ": <span style=\"color:var(--text)\">" + exact(s.values[i]) + " gil</span></div>";
+      if (points[i].detail) h += "<div>" + esc(points[i].detail) + "</div>";
+      return h;
+    });
+  }
+
+  function donut(host, parts, total) {
+    host.innerHTML = "";
+    const size = 200, R = 92, r = 60, cx = size / 2, cy = size / 2;
+    const svg = svgEl("svg", { viewBox: `0 0 ${size} ${size}`, width: size, height: size, role: "img" }, host);
+    let a0 = -Math.PI / 2;
+    const gap = parts.length > 1 ? 0.012 : 0;
+    parts.forEach((p, i) => {
+      const sweep = Math.max(0, (p.value / total) * Math.PI * 2 - gap);
+      if (sweep <= 0) { a0 += (p.value / total) * Math.PI * 2; return; }
+      const a1 = a0 + sweep, large = sweep > Math.PI ? 1 : 0;
+      const pt = (rad, a) => [cx + rad * Math.cos(a), cy + rad * Math.sin(a)];
+      const [x0, y0] = pt(R, a0), [x1, y1] = pt(R, a1), [x2, y2] = pt(r, a1), [x3, y3] = pt(r, a0);
+      const d = sweep >= Math.PI * 2 - 0.001
+        ? `M${cx},${cy - R} A${R},${R} 0 1 1 ${cx - 0.01},${cy - R} L${cx - 0.01},${cy - r} A${r},${r} 0 1 0 ${cx},${cy - r} Z`
+        : `M${x0},${y0} A${R},${R} 0 ${large} 1 ${x1},${y1} L${x2},${y2} A${r},${r} 0 ${large} 0 ${x3},${y3} Z`;
+      const seg = svgEl("path", { d, fill: css("--slot-" + (i + 1)) }, svg);
+      seg.addEventListener("mousemove", (ev) => showTip(esc(p.name) + "<b>" + exact(p.value) + " gil</b><div>" + pct(p.value / total) + " of the period</div>", ev));
+      seg.addEventListener("mouseleave", hideTip);
+      a0 += (p.value / total) * Math.PI * 2;
+    });
+    const t1 = svgEl("text", { x: cx, y: cy - 2, "text-anchor": "middle", fill: css("--text"), "font-size": 18, "font-weight": 640 }, svg); t1.textContent = short(total);
+    const t2 = svgEl("text", { x: cx, y: cy + 16, "text-anchor": "middle", fill: css("--text-3"), "font-size": 11.5 }, svg); t2.textContent = "gil in total";
+  }
+
+  // ---------- page ----------
+  const content = document.getElementById("content");
+  const PRESETS = [
+    ["last7", "Last 7 days"], ["last30", "Last 30 days"], ["last90", "Last 90 days"], ["thisweek", "This week"], ["lastweek", "Last week"],
+    ["thismonth", "This month"], ["lastmonth", "Last month"], ["thisquarter", "This quarter"], ["lastquarter", "Last quarter"],
+    ["thisyear", "This year"], ["lifetime", "Lifetime"],
+  ];
+
+  function resolvePreset(p, first) {
+    const t = TODAY, w = startOfWeek(t), m = startOfMonth(t), q = startOfQuarter(t);
+    switch (p) {
+      case "last7": return [t - 6, t];
+      case "last30": return [t - 29, t];
+      case "last90": return [t - 89, t];
+      case "thisweek": return [w, t];
+      case "lastweek": return [w - 7, w - 1];
+      case "thismonth": return [m, t];
+      case "lastmonth": return [addMonths(m, -1), m - 1];
+      case "thisquarter": return [q, t];
+      case "lastquarter": return [addMonths(q, -3), q - 1];
+      case "thisyear": return [Date.UTC(dateOf(t).getUTCFullYear(), 0, 1) / DAY_MS, t];
+      default: return [first !== null && first <= t ? first : t, t];
+    }
+  }
+
+  function firstDayForFc() {
+    let first = null;
+    for (const v of voyages) if (inFc(v.fc) && (first === null || v.day < first)) first = v.day;
+    // Spending counts too, so "Lifetime" includes parts and housing bought before the first voyage.
+    for (const e of entries) if ((state.fc < 0 || e.fc === state.fc) && (first === null || e.day < first)) first = e.day;
+    return first;
+  }
+
+  function buildFilters() {
+    const sel = document.getElementById("fcSelect");
+    if (companies.length < 2) document.getElementById("fcGroup").classList.add("hidden");
+    sel.innerHTML = '<option value="-1">All Free Companies</option>' + companies.map((c, i) => `<option value="${i}">${esc(c.name)}</option>`).join("");
+    sel.value = String(state.fc);
+    sel.addEventListener("change", () => { state.fc = Number(sel.value); if (state.preset !== "custom") applyPreset(state.preset); render(); });
+
+    const pres = document.getElementById("presets");
+    pres.innerHTML = PRESETS.map(([k, l]) => `<span class="pill" tabindex="0" role="button" data-p="${k}">${l}</span>`).join("");
+    pres.addEventListener("click", (ev) => { const k = ev.target.dataset && ev.target.dataset.p; if (k) { applyPreset(k); autoGroup(); render(); } });
+    pres.addEventListener("keydown", (ev) => { if ((ev.key === "Enter" || ev.key === " ") && ev.target.dataset.p) { ev.preventDefault(); ev.target.click(); } });
+
+    const from = document.getElementById("from"), to = document.getElementById("to");
+    const onDate = () => {
+      if (!from.value || !to.value) return;
+      let a = toNum(from.value), b = toNum(to.value);
+      if (a > b) [a, b] = [b, a];
+      state.from = a; state.to = b; state.preset = "custom"; autoGroup(); render();
+    };
+    from.addEventListener("change", onDate); to.addEventListener("change", onDate);
+
+    const grp = document.getElementById("grouping");
+    for (const g of ["day", "week", "month", "quarter"]) {
+      const s = document.createElement("span");
+      s.className = "pill teal"; s.tabIndex = 0; s.setAttribute("role", "button"); s.dataset.g = g; s.textContent = g[0].toUpperCase() + g.slice(1);
+      s.addEventListener("click", () => { state.group = g; render(); });
+      s.addEventListener("keydown", (ev) => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); s.click(); } });
+      grp.appendChild(s);
+    }
+  }
+
+  function applyPreset(k) {
+    const [a, b] = resolvePreset(k, firstDayForFc());
+    state.from = a; state.to = b; state.preset = k;
+  }
+
+  function autoGroup() {
+    const n = state.to - state.from + 1;
+    state.group = n <= 92 ? "day" : n <= 400 ? "week" : "month";
+  }
+
+  function syncFilters() {
+    document.querySelectorAll("#presets .pill").forEach((p) => p.classList.toggle("on", p.dataset.p === state.preset));
+    document.querySelectorAll("#grouping .pill").forEach((p) => p.classList.toggle("on", p.dataset.g === state.group));
+    document.getElementById("from").value = toStr(state.from);
+    document.getElementById("to").value = toStr(state.to);
+  }
+
+  function tile(label, value, detail, accent, title) {
+    return `<div class="tile" style="--accent:var(${accent})" title="${esc(title || "")}"><div class="k">${esc(label)}</div><div class="v">${esc(value)}</div><div class="d">${esc(detail || "")}</div></div>`;
+  }
+
+  function render() {
+    hideTip();
+    syncFilters();
+    const R = compute();
+    const fcName = state.fc >= 0 ? companies[state.fc].name : companies.length > 1 ? "All Free Companies combined" : companies.length ? companies[0].name : "Your submarines";
+    const nDays = state.to - state.from + 1;
+    document.getElementById("scope").textContent = `${fcName} · ${fmtDay(state.from)} to ${fmtDay(state.to)} · ${plural(nDays, "day")}`;
+
+    if (R.recorded === 0) {
+      content.innerHTML = `<div class="card"><h2>Nothing recorded in this period</h2><p class="note">Choose a different range above. Days before the ledger's first record, and days still to come, have nothing to show.</p></div>` + financeHtml(R);
+      drawFinance(R);
+      return;
+    }
+
+    const perMonth = Math.trunc(R.avgDay * 30.4375), perYear = R.avgDay * 365;
+    let tiles = tile("Income", short(R.total), plural(R.voyages, "voyage"), "--gold", exact(R.total) + " gil");
+    if (R.runIn || R.invIn) tiles += tile("After running costs", short(R.total - R.runIn), short(R.runIn) + " spent on running", "--violet", exact(R.total - R.runIn) + " gil");
+    tiles += tile("Average per day", short(R.avgDay), short(R.avgRecorded) + " on days with a record", "--teal", exact(R.avgDay) + " gil a day across " + plural(R.coveredDays, "day"));
+    tiles += tile("Typical day", short(R.median), "Half of recorded days earned more", "--slot-1", "Median recorded day: " + exact(R.median) + " gil");
+    tiles += tile("Best day", R.best ? short(R.best.income) : "-", R.best ? fmtDay(R.best.day) : "", "--amber", R.worst ? "Lowest recorded day: " + exact(R.worst.income) + " gil on " + fmtDay(R.worst.day) : "");
+    tiles += tile("Per voyage", short(R.perVoyage), R.byRoute.length ? "Mostly route " + R.byRoute[0].label : "", "--violet", exact(R.perVoyage) + " gil per voyage");
+    tiles += tile("Days recorded", `${R.recorded} of ${R.coveredDays}`, R.missing || R.zero ? `${R.zero} at zero, ${R.missing} without a record` : "Every day recorded", "--mint", "A day with a record can still earn zero. A day without one had nothing collected, or nothing seen.");
+    tiles += tile("At this pace", short(perMonth) + " / month", short(perYear) + " a year", "--gold", "This period's average per day, carried over a month and a year.");
+    if (R.invIn) tiles += tile("Invested", short(R.invIn), "One-off purchases in this period", "--mint", exact(R.invIn) + " gil");
+    const tileCount = (tiles.match(/class="tile"/g) || []).length;
+
+    const unit = state.group;
+    const chartTitle = state.chart === "period" ? "Income per " + unit : "Running total";
+    const groupWord = (unit === "day" ? "Day" : unit[0].toUpperCase() + unit.slice(1));
+    const showSubFc = state.fc < 0 && companies.length > 1;
+
+    content.innerHTML = `
+      <div class="tiles" style="--cols:${tileCount % 4 === 0 ? 4 : 3}">${tiles}</div>
+      <div class="card">
+        <div class="card-head"><h2>${esc(chartTitle)}</h2>
+          <div class="tools"><span class="pill ${state.chart === "period" ? "on" : ""}" data-chart="period" tabindex="0" role="button">Per ${unit}</span><span class="pill ${state.chart === "running" ? "on" : ""}" data-chart="running" tabindex="0" role="button">Running total</span></div></div>
+        <div class="legend" id="mainLegend"></div>
+        <div class="chart" id="mainChart"></div>
+      </div>
+      <div class="row2">
+        <div class="card"><h2>What the gil came from</h2><p class="note">Items brought back in this period, by vendor value.</p><div class="donut-wrap"><div id="donut"></div><div class="donut-legend" id="donutLegend"></div></div></div>
+        <div class="card"><div class="card-head"><h2>By ${state.breakdown === "subs" ? "submarine" : "route"}</h2>
+          <div class="tools"><span class="pill ${state.breakdown !== "subs" ? "on" : ""}" data-bd="routes" tabindex="0" role="button">Routes</span><span class="pill ${state.breakdown === "subs" ? "on" : ""}" data-bd="subs" tabindex="0" role="button">Submarines</span></div></div>
+          <div class="ranked" id="ranked"></div>
+          <table style="margin-top:10px"><thead><tr><th>${state.breakdown === "subs" ? "Submarine" : "Route"}</th><th class="num">Voyages</th><th class="num">Per voyage</th><th class="num" title="Gil per 24 hours of real time, from one collection to the next">Per 24h</th></tr></thead><tbody id="groupRows"></tbody></table>
+        </div>
+      </div>
+      <div class="card"><h2>By ${unit}</h2><p class="note">The chart's figures, newest first.</p>
+        <div class="scroll"><table><thead><tr><th>${groupWord}</th><th class="num">Income (gil)</th><th class="num">Voyages</th><th class="num">Days recorded</th></tr></thead><tbody id="periodRows"></tbody></table></div></div>
+      <div class="card"><div class="card-head"><h2>Voyages</h2><div class="tools"><input type="search" id="search" placeholder="Search submarine, route or item" value="${esc(state.search)}" aria-label="Search voyages"></div></div>
+        <p class="note">Click a voyage to see what it brought back. Click a heading to sort.</p>
+        <table><thead><tr>
+          <th class="sort" data-sort="when" tabindex="0">Collected</th>${showSubFc ? '<th class="sort" data-sort="fc" tabindex="0">Free Company</th>' : ""}<th class="sort" data-sort="sub" tabindex="0">Submarine</th><th class="sort" data-sort="route" tabindex="0">Route</th><th class="sort num" data-sort="gil" tabindex="0">Value (gil)</th>
+        </tr></thead><tbody id="voyageRows"></tbody></table>
+        <div class="pager" id="pager"></div></div>
+      ${financeHtml(R)}`;
+
+    // Main chart.
+    const mainHost = document.getElementById("mainChart");
+    const legend = document.getElementById("mainLegend");
+    const drawMain = () => {
+      if (state.chart === "running") {
+        const pts = R.periods.map((p) => ({ label: p.label, group: p.group, title: "Through " + p.title, detail: exact(p.income) + " gil added" }));
+        let acc = 0;
+        legend.innerHTML = "";
+        lineChart(mainHost, pts, [{ name: "Running total", color: css("--gold-mark"), wash: true, values: R.periods.map((p) => (acc += p.income)) }]);
+      } else {
+        const pts = R.periods.map((p) => ({
+          label: p.label, group: p.group, title: p.title, value: Math.max(0, p.income), missing: p.recorded === 0,
+          detail: plural(p.voyages, "voyage") + (unit !== "day" && p.days ? ` · ${p.recorded} of ${p.days} days recorded` : ""),
+        }));
+        let line = null;
+        if (unit === "day" && pts.length >= 14) {
+          const vals = pts.map((p) => p.value), out = []; let sum = 0;
+          vals.forEach((v, i) => { sum += v; if (i >= 7) sum -= vals[i - 7]; out.push(Math.trunc(sum / Math.min(i + 1, 7))); });
+          line = out;
+          legend.innerHTML = `<span><span class="key" style="background:var(--gold-mark)"></span>Income per day</span><span><span class="line" style="background:var(--teal-mark)"></span>7-day average</span>`;
+        } else legend.innerHTML = "";
+        barChart(mainHost, pts, line, "7-day average");
+      }
+    };
+    drawMain();
+
+    // Donut: the five biggest items and everything else.
+    const top = R.byItem.slice(0, 5);
+    const rest = R.byItem.slice(5);
+    const parts = top.map((x) => ({ name: x.name, value: x.gil, qty: x.qty }));
+    if (rest.length) parts.push({ name: `Everything else (${rest.length} items)`, value: rest.reduce((s, x) => s + x.gil, 0) });
+    const itemTotal = parts.reduce((s, p) => s + p.value, 0);
+    if (itemTotal > 0) {
+      donut(document.getElementById("donut"), parts, itemTotal);
+      document.getElementById("donutLegend").innerHTML = parts.map((p, i) =>
+        `<div class="r"><span class="sw" style="background:var(--slot-${i + 1})"></span><span>${esc(p.name)}${p.qty ? ` <span class="dim" style="color:var(--text-3)">×${exact(p.qty)}</span>` : ""}</span><span>${exact(p.value)}</span><span class="share">${pct(p.value / itemTotal)}</span></div>`).join("");
+    } else {
+      document.getElementById("donut").innerHTML = "";
+      document.getElementById("donutLegend").innerHTML = `<div class="empty">No item detail in this period: its income comes from hand-kept totals.</div>`;
+    }
+
+    // Ranked bars.
+    const groups = state.breakdown === "subs" ? R.bySub : R.byRoute;
+    const shown = groups.slice(0, 8);
+    const maxG = Math.max(1, ...shown.map((g) => g.total));
+    const totalG = Math.max(1, groups.reduce((s, g) => s + g.total, 0));
+    document.getElementById("ranked").innerHTML = shown.map((g) =>
+      `<div class="r" title="${esc(g.label)}: ${exact(g.total)} gil"><span class="name">${esc(g.label)}</span><span><span class="bar" style="display:block;width:${(g.total / maxG * 100).toFixed(2)}%"></span></span><span class="val">${short(g.total)} (${pct(g.total / totalG)})</span></div>`).join("");
+    document.getElementById("groupRows").innerHTML = shown.map((g) =>
+      `<tr><td>${esc(g.label)}</td><td class="num">${exact(g.voyages)}</td><td class="num">${exact(g.per)}</td><td class="num teal">${g.per24 ? exact(g.per24) : "-"}</td></tr>`).join("");
+
+    // Period table.
+    document.getElementById("periodRows").innerHTML = R.periods.slice().reverse().map((p) =>
+      `<tr><td>${esc(p.title)}</td>${p.recorded === 0 ? '<td class="num dim">no record</td>' : `<td class="num gold">${exact(p.income)}</td>`}<td class="num">${exact(p.voyages)}</td><td class="num ${p.days > p.recorded ? "dim" : ""}">${p.days ? p.recorded + " of " + p.days : "-"}</td></tr>`).join("");
+
+    renderVoyages(R, showSubFc);
+    drawFinance(R);
+
+    // Controls inside the page.
+    content.querySelectorAll("[data-chart]").forEach((el) => el.addEventListener("click", () => { state.chart = el.dataset.chart; render(); }));
+    content.querySelectorAll("[data-bd]").forEach((el) => el.addEventListener("click", () => { state.breakdown = el.dataset.bd; render(); }));
+    content.querySelectorAll(".tools .pill").forEach((el) => el.addEventListener("keydown", (ev) => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); el.click(); } }));
+    const search = document.getElementById("search");
+    search.addEventListener("input", () => { state.search = search.value; state.page = 0; state.open = -1; renderVoyages(R, showSubFc); });
+    content.querySelectorAll("th.sort").forEach((th) => {
+      const go = () => { const k = th.dataset.sort; state.sortDir = state.sortKey === k ? -state.sortDir : (k === "when" || k === "gil" ? -1 : 1); state.sortKey = k; state.page = 0; renderVoyages(R, showSubFc); };
+      th.addEventListener("click", go);
+      th.addEventListener("keydown", (ev) => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); go(); } });
+    });
+
+    redraw = () => { drawMain(); drawFinance(R); };
+  }
+
+  let redraw = () => {};
+
+  function renderVoyages(R, showSubFc) {
+    const terms = state.search.toLowerCase().split(/\s+/).filter(Boolean);
+    let list = R.rangeVoyages.map((v, i) => ({ v, i }));
+    if (terms.length) list = list.filter(({ v }) => {
+      const hay = (subs[v.sub].name + " " + v.route + " " + companies[v.fc].name + " " + v.loot.map((l) => items[l.item]).join(" ")).toLowerCase();
+      return terms.every((t) => hay.includes(t));
+    });
+    const key = state.sortKey, dir = state.sortDir;
+    const val = ({ v }) => key === "gil" ? v.gil : key === "sub" ? subs[v.sub].name : key === "route" ? v.route : key === "fc" ? companies[v.fc].name : v.unix;
+    list.sort((a, b) => { const x = val(a), y = val(b); return (x < y ? -1 : x > y ? 1 : 0) * dir; });
+
+    const per = 25, pages = Math.max(1, Math.ceil(list.length / per));
+    state.page = Math.min(state.page, pages - 1);
+    const slice = list.slice(state.page * per, state.page * per + per);
+    const cols = showSubFc ? 5 : 4;
+    document.getElementById("voyageRows").innerHTML = slice.length ? slice.map(({ v, i }) => {
+      const row = `<tr class="click" tabindex="0" data-i="${i}"><td>${fmtDay(v.day)}, ${esc(v.time)}</td>${showSubFc ? `<td>${esc(companies[v.fc].name)}</td>` : ""}<td>${esc(subs[v.sub].name)}</td><td class="teal">${esc(v.route)}</td><td class="num gold">${exact(v.gil)}</td></tr>`;
+      if (state.open !== i) return row;
+      const loot = v.loot.slice().sort((a, b) => b.gil - a.gil).map((l) => `${exact(l.qty)} × ${esc(items[l.item])}: ${exact(l.gil)} gil`).join("<br>");
+      return row + `<tr class="loot"><td colspan="${cols}">${loot || "No item detail"}</td></tr>`;
+    }).join("") : `<tr><td colspan="${cols}" class="empty">No voyages match.</td></tr>`;
+
+    document.querySelectorAll("#voyageRows tr.click").forEach((tr) => {
+      const go = () => { const i = Number(tr.dataset.i); state.open = state.open === i ? -1 : i; renderVoyages(R, showSubFc); };
+      tr.addEventListener("click", go);
+      tr.addEventListener("keydown", (ev) => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); go(); } });
+    });
+
+    const pager = document.getElementById("pager");
+    pager.innerHTML = `<span>${plural(list.length, "voyage")} · ${exact(list.reduce((s, x) => s + x.v.gil, 0))} gil</span>` +
+      (pages > 1 ? `<button type="button" id="prev" ${state.page === 0 ? "disabled" : ""}>Previous</button><span>Page ${state.page + 1} of ${pages}</span><button type="button" id="next" ${state.page >= pages - 1 ? "disabled" : ""}>Next</button>` : "");
+    const prev = document.getElementById("prev"), next = document.getElementById("next");
+    if (prev) prev.addEventListener("click", () => { state.page--; state.open = -1; renderVoyages(R, showSubFc); });
+    if (next) next.addEventListener("click", () => { state.page++; state.open = -1; renderVoyages(R, showSubFc); });
+  }
+
+  function financeHtml(R) {
+    const F = R.finance;
+    if (!F.invested && !F.running) return "";
+    let headline, detail, accent;
+    if (F.share === null) { headline = "No investment entered"; detail = `Running costs so far: ${exact(F.running)} gil.`; accent = "--teal"; }
+    else if (F.paidOn !== null) { headline = "Paid back on " + fmtDay(F.paidOn); detail = `The submarines have earned back ${pct(F.share)} of the ${exact(F.invested)} gil invested. Everything since is profit: ${exact(F.profit)} gil.`; accent = "--mint"; }
+    else { headline = pct(F.share) + " paid back"; detail = `${exact(-F.profit)} gil still to earn back` + (F.projected !== null ? `, around ${fmtDay(F.projected)} at the last 30 days' pace.` : "."); accent = "--amber"; }
+    const scale = Math.max(1, F.share || 0);
+    const meter = F.share === null ? "" : `<div class="meter" style="--accent:var(${accent})"><i style="width:${(Math.min(F.share, scale) / scale * 100).toFixed(2)}%"></i>${F.share > 1 ? `<u style="left:${(100 / scale).toFixed(2)}%"></u>` : ""}</div><div class="note">${F.share > 1 ? "The white mark is where the investment was covered." : "The full bar is the amount invested."}</div>`;
+    const rows = F.costs.slice().sort((a, b) => b.day - a.day).map((e) =>
+      `<tr><td>${fmtDay(e.day)}</td><td>${e.kind === "inv" ? "Investment" : "Running cost"}</td><td>${esc(e.category)}</td><td class="dim">${esc(e.note)}</td>${state.fc < 0 && companies.length > 1 ? `<td>${e.fc >= 0 ? esc(companies[e.fc].name) : ""}</td>` : ""}<td class="num">${exact(e.gil)}</td></tr>`).join("");
+    return `
+      <div class="card" style="--accent:var(${accent})"><div class="headline" style="color:var(${accent})">${esc(headline)}</div><p class="note" style="margin-bottom:0">${esc(detail)}</p>${meter}
+        <div class="tiles" style="margin:12px 0 4px">
+          ${tile("Invested", short(F.invested), "One-off purchases", "--violet", exact(F.invested) + " gil")}
+          ${tile("Earned", short(F.income), F.running ? short(F.running) + " running costs" : "No running costs entered", "--gold", exact(F.income) + " gil earned")}
+          ${tile("Profit", (F.profit > 0 ? "+" : "") + short(F.profit), F.profit >= 0 ? "After paying for everything" : "Still to earn back", F.profit >= 0 ? "--mint" : "--amber", exact(F.profit) + " gil")}
+          ${tile("Return", F.share === null ? "-" : pct(F.share), short(F.perDay) + " a day lately", "--teal", "Earnings after running costs as a share of what was invested")}
+        </div>
+        <h2 style="margin-top:10px">Earned against invested</h2><p class="note">Where the gold line climbs above the teal one, the fleet has paid for itself. These lines cover the ledger's whole life, not just the period above.</p>
+        <div class="legend"><span><span class="line" style="background:var(--gold-mark)"></span>Earned after running costs</span><span><span class="line" style="background:var(--teal-mark)"></span>Invested</span></div>
+        <div class="chart" id="financeChart"></div>
+      </div>
+      <div class="card"><h2>Spending</h2><p class="note">Everything entered on the Expenses page.</p><div class="scroll"><table><thead><tr><th>Date</th><th>Type</th><th>Category</th><th>Description</th>${state.fc < 0 && companies.length > 1 ? "<th>Free Company</th>" : ""}<th class="num">Amount (gil)</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+  }
+
+  function drawFinance(R) {
+    const host = document.getElementById("financeChart");
+    const F = R.finance;
+    if (!host || F.timeline.length < 2) return;
+    const long = F.timeline.length > 120;
+    const pts = F.timeline.map((p) => {
+      const d = dateOf(p.day), gap = p.net - p.spent;
+      return {
+        label: long ? "" : String(d.getUTCDate()), group: long ? MONTHS[d.getUTCMonth()] + " " + String(d.getUTCFullYear()).slice(2) : MONTHS[d.getUTCMonth()],
+        title: fmtLong(p.day), detail: p.spent ? (gap >= 0 ? exact(gap) + " gil ahead" : exact(-gap) + " gil still to earn back") : "",
+      };
+    });
+    lineChart(host, pts, [
+      { name: "Earned after running costs", color: css("--gold-mark"), wash: true, values: F.timeline.map((p) => Math.max(0, p.net)) },
+      { name: "Invested", color: css("--teal-mark"), wash: false, values: F.timeline.map((p) => p.spent) },
+    ]);
+  }
+
+  // ---------- theme ----------
+  const themeBtn = document.getElementById("themeBtn");
+  const isDark = () => {
+    const t = document.documentElement.dataset.theme;
+    return t ? t === "dark" : !matchMedia("(prefers-color-scheme: light)").matches;
+  };
+  const labelTheme = () => { themeBtn.textContent = isDark() ? "Light mode" : "Dark mode"; };
+  themeBtn.addEventListener("click", () => {
+    const next = isDark() ? "light" : "dark";
+    document.documentElement.dataset.theme = next;
+    try { localStorage.setItem("subledger-theme", next); } catch (e) { /* private window */ }
+    labelTheme(); render();
+  });
+  try { const saved = localStorage.getItem("subledger-theme"); if (saved) document.documentElement.dataset.theme = saved; } catch (e) { /* private window */ }
+  labelTheme();
+
+  // ---------- start ----------
+  document.getElementById("generated").textContent = `Generated ${DATA.generated} by SubLedger ${DATA.version} · ledger days in ${DATA.timeZone}${DATA.cutoff !== "00:00" ? ", starting " + DATA.cutoff : ""}`;
+  document.getElementById("footer").textContent = "All amounts are in gil at NPC vendor prices, exact to the gil. Income counts on the ledger day it was collected. A day with a record can still earn zero; a day without one had nothing collected, or nothing was seen. Made by Starlit Systems. FINAL FANTASY XIV © SQUARE ENIX CO., LTD. SubLedger is a fan-made tool and is not affiliated with Square Enix.";
+  if (state.preset !== "custom") applyPreset(state.preset);
+  buildFilters();
+  render();
+  let resizeTimer = 0;
+  addEventListener("resize", () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => redraw(), 120); });
+})();
+</script>
+</body>
+</html>

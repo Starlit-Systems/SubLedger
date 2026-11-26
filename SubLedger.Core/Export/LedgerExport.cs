@@ -90,7 +90,7 @@ public static class LedgerExport
                 Row(sb, Day(date), "recorded", day.IncomeGil.ToString(Inv), day.Voyages.ToString(Inv),
                     day.CapturedGil.ToString(Inv),
                     day.HasManual ? day.ManualGil.ToString(Inv) : string.Empty,
-                    day.HasManual ? day.ManualExcluded ? "no" : "yes" : string.Empty,
+                    day.HasManual ? !day.ManualExcluded ? "yes" : day.ExcludedManualGil == day.ManualGil ? "no" : "partly" : string.Empty,
                     day.AdjustmentGil.ToString(Inv));
             }
             else
