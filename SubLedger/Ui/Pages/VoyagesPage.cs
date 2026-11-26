@@ -122,18 +122,26 @@ internal sealed class VoyagesPage
         var headerTop = windowPos.Y;
         var textHeight = Widgets.Measure("A", assets.Small).Y;
 
-        ImGui.Dummy(new Vector2(0, headerHeight));
+        // One clickable area over all the rows. It takes mouse presses for the list (so clicking a row never drags the
+        // window) and reserves the full scroll height.
+        var hoveringRows = false;
+        var clickedRows = false;
+        ImGui.SetCursorPos(new Vector2(0, headerHeight));
         if (rows.Count == 0)
         {
             ImGui.SetCursorPos(new Vector2(pad, headerHeight + Theme.S(18f)));
             Widgets.Text(search.Length > 0 ? "No voyages match that search." : "No voyages recorded yet.", Theme.TextDim);
+        }
+        else
+        {
+            clickedRows = ImGui.InvisibleButton("##rows", new Vector2(MathF.Max(1f, width), rows.Count * rowHeight));
+            hoveringRows = ImGui.IsItemHovered();
         }
 
         // Only the rows on screen are drawn, so a ledger with thousands of voyages stays smooth.
         var viewHeight = ImGui.GetWindowHeight();
         var first = Math.Max(0, (int)((scrollY - headerHeight) / rowHeight));
         var last = Math.Min(rows.Count - 1, (int)((scrollY + viewHeight) / rowHeight) + 1);
-        var hoveringWindow = ImGui.IsWindowHovered();
         var mouse = ImGui.GetMousePos();
 
         for (var i = first; i <= last; i++)
@@ -146,7 +154,7 @@ internal sealed class VoyagesPage
                 continue;
 
             var isSelected = row.Voyage.Id == selectedId;
-            var isHovered = hoveringWindow && mouse.Y >= MathF.Max(min.Y, headerTop + headerHeight) && mouse.Y < max.Y && mouse.X >= min.X && mouse.X < max.X;
+            var isHovered = hoveringRows && mouse.Y >= MathF.Max(min.Y, headerTop + headerHeight) && mouse.Y < max.Y && mouse.X >= min.X && mouse.X < max.X;
 
             if (isSelected)
             {
@@ -171,7 +179,7 @@ internal sealed class VoyagesPage
             if (isHovered)
             {
                 ImGui.SetMouseCursor(ImGuiMouseCursor.Hand);
-                if (ImGui.IsMouseClicked(ImGuiMouseButton.Left))
+                if (clickedRows)
                     selectedId = isSelected ? null : row.Voyage.Id;
             }
         }

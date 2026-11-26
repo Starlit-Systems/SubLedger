@@ -94,7 +94,7 @@ internal sealed class ConsolePage
         {
             if (i > 0)
                 ImGui.SameLine(0, Theme.S(8f));
-            if (Widgets.FilterPill($"{Levels[i].Name}  {counts[i]}", Levels[i].Color, shown[i], assets))
+            if (Widgets.FilterPill($"{Levels[i].Name}  {counts[i]}", Levels[i].Color, shown[i], assets, Levels[i].Name))
                 shown[i] = !shown[i];
         }
 

@@ -10,7 +10,7 @@ internal static class Changelog
 {
     public static readonly IReadOnlyList<ChangelogEntry> Entries =
     [
-        new("0.1.0.0", new DateOnly(2026, 11, 26),
+        new("0.1.0.1", new DateOnly(2026, 11, 26),
         [
             "First version: every submarine voyage you collect is recorded automatically, with each item valued at its NPC vendor price from the game's own data",
             "A voyage is never counted twice, even across restarts or when an old voyage log is opened again",

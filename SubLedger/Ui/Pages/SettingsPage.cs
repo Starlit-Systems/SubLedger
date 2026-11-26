@@ -71,7 +71,7 @@ internal sealed class SettingsPage
         Widgets.SettingRow(label, description, Theme.S(42f), Theme.S(22f), () =>
         {
             var current = value;
-            if (Widgets.Toggle(ref current))
+            if (Widgets.Toggle(label, ref current))
             {
                 set(current);
                 Save();

@@ -221,7 +221,7 @@ internal static class Widgets
         var origin = ImGui.GetCursorScreenPos();
         var end = origin + new Vector2(width, height);
         var drawList = ImGui.GetWindowDrawList();
-        var hovered = ImGui.IsMouseHoveringRect(origin, end) && ImGui.IsWindowHovered();
+        var clicked = Press("##tab" + label, new Vector2(width, height), out var hovered, out _);
 
         if (selected)
         {
@@ -246,12 +246,22 @@ internal static class Widgets
         if (attention)
             drawList.AddCircleFilled(new Vector2(end.X - Theme.S(14f), origin.Y + height * 0.5f), Theme.S(3.5f), Theme.U32(Theme.Teal));
 
-        ImGui.Dummy(new Vector2(width, height));
-        if (!hovered)
-            return false;
+        return clicked;
+    }
 
-        ImGui.SetMouseCursor(ImGuiMouseCursor.Hand);
-        return ImGui.IsMouseClicked(ImGuiMouseButton.Left);
+    /// <summary>
+    /// Reserves a clickable area at the cursor. Being a real ImGui button, it takes the mouse press for itself, so
+    /// pressing a hand-drawn control never drags the window underneath, and it is not clickable through a popup.
+    /// </summary>
+    private static bool Press(string id, Vector2 size, out bool hovered, out bool held, bool enabled = true)
+    {
+        size = new Vector2(System.MathF.Max(1f, size.X), System.MathF.Max(1f, size.Y));
+        var clicked = ImGui.InvisibleButton(id, size);
+        hovered = enabled && ImGui.IsItemHovered();
+        held = enabled && ImGui.IsItemActive();
+        if (hovered)
+            ImGui.SetMouseCursor(ImGuiMouseCursor.Hand);
+        return enabled && clicked;
     }
 
     public static Vector2 PillSize(string label, UiAssets assets, bool dot = true)
@@ -286,13 +296,13 @@ internal static class Widgets
     }
 
     /// <summary>A pill that can be switched on and off, for filters. Returns true when clicked.</summary>
-    public static bool FilterPill(string label, Vector4 color, bool active, UiAssets assets)
+    public static bool FilterPill(string label, Vector4 color, bool active, UiAssets assets, string? id = null)
     {
         var origin = ImGui.GetCursorScreenPos();
         var size = PillSize(label, assets, dot: false) + new Vector2(Theme.S(6f), Theme.S(4f));
         var end = origin + size;
         var drawList = ImGui.GetWindowDrawList();
-        var hovered = ImGui.IsMouseHoveringRect(origin, end) && ImGui.IsWindowHovered();
+        var clicked = Press("##pill" + (id ?? label), size, out var hovered, out _);
 
         var fill = active ? Theme.Mix(Theme.Card, color, hovered ? 0.30f : 0.22f) : hovered ? Theme.CardRaised : Theme.Card;
         drawList.AddRectFilled(origin, end, Theme.U32(fill), size.Y * 0.5f);
@@ -301,16 +311,11 @@ internal static class Widgets
         var text = Measure(label, assets.Small);
         TextAt(drawList, origin + (size - text) * 0.5f, label, active ? color : Theme.TextDim, assets.Small);
 
-        ImGui.Dummy(size);
-        if (!hovered)
-            return false;
-
-        ImGui.SetMouseCursor(ImGuiMouseCursor.Hand);
-        return ImGui.IsMouseClicked(ImGuiMouseButton.Left);
+        return clicked;
     }
 
     /// <summary>An on/off switch. Returns true when it was flipped.</summary>
-    public static bool Toggle(ref bool value)
+    public static bool Toggle(string id, ref bool value)
     {
         var trackWidth = Theme.S(42f);
         var trackHeight = Theme.S(22f);
@@ -318,7 +323,7 @@ internal static class Widgets
         var origin = ImGui.GetCursorScreenPos();
         var end = origin + new Vector2(trackWidth, trackHeight);
         var drawList = ImGui.GetWindowDrawList();
-        var hovered = ImGui.IsMouseHoveringRect(origin, end) && ImGui.IsWindowHovered();
+        var clicked = Press("##toggle" + id, new Vector2(trackWidth, trackHeight), out var hovered, out _);
 
         var track = value
             ? Theme.Mix(Theme.TealDeep, Theme.Teal, hovered ? 0.55f : 0.35f)
@@ -329,12 +334,7 @@ internal static class Widgets
         var knobX = value ? end.X - radius - Theme.S(3f) : origin.X + radius + Theme.S(3f);
         drawList.AddCircleFilled(new Vector2(knobX, origin.Y + trackHeight * 0.5f), radius, Theme.U32(value ? Theme.Text : Theme.TextSoft));
 
-        ImGui.Dummy(new Vector2(trackWidth, trackHeight));
-        if (!hovered)
-            return false;
-
-        ImGui.SetMouseCursor(ImGuiMouseCursor.Hand);
-        if (!ImGui.IsMouseClicked(ImGuiMouseButton.Left))
+        if (!clicked)
             return false;
 
         value = !value;
@@ -363,8 +363,7 @@ internal static class Widgets
         var origin = ImGui.GetCursorScreenPos();
         var end = origin + size;
         var drawList = ImGui.GetWindowDrawList();
-        var hovered = enabled && ImGui.IsMouseHoveringRect(origin, end) && ImGui.IsWindowHovered();
-        var held = hovered && ImGui.IsMouseDown(ImGuiMouseButton.Left);
+        var clicked = Press("##button" + label, size, out var hovered, out var held, enabled);
 
         Vector4 fill, outline, ink;
         switch (kind)
@@ -405,12 +404,7 @@ internal static class Widgets
 
         drawList.AddText(new Vector2(x, origin.Y + (size.Y - text.Y) * 0.5f), Theme.U32(ink), label);
 
-        ImGui.Dummy(size);
-        if (!hovered)
-            return false;
-
-        ImGui.SetMouseCursor(ImGuiMouseCursor.Hand);
-        return ImGui.IsMouseClicked(ImGuiMouseButton.Left);
+        return clicked;
     }
 
     /// <summary>
