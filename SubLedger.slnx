@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="SubLedger.Core/SubLedger.Core.csproj" />
+  <Project Path="SubLedger.Tests/SubLedger.Tests.csproj" />
+  <Project Path="SubLedger/SubLedger.csproj" />
+</Solution>

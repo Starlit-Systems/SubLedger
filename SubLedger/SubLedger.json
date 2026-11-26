@@ -1,0 +1,19 @@
+{
+  "Name": "SubLedger",
+  "Author": "Starlit Systems",
+  "Punchline": "An accounting ledger for your Free Company submarines.",
+  "Description": "SubLedger watches your submarine voyage results and keeps an exact, permanent record of what every voyage earned at NPC vendor prices. It only observes: it never clicks, sends or changes anything, so it runs happily alongside whatever you use to collect and redeploy. Tracks every submarine, character and Free Company separately or combined, imports your existing SubmarineTracker history, and keeps dated backups of its ledger. Open it with /subledger.",
+  "RepoUrl": "https://github.com/starlit-systems/SubLedger",
+  "IconUrl": "https://raw.githubusercontent.com/starlit-systems/SubLedger/main/SubLedger/images/icon.png",
+  "Tags": [
+    "submarine",
+    "submersible",
+    "voyage",
+    "workshop",
+    "gil",
+    "income",
+    "ledger",
+    "tracker"
+  ],
+  "DalamudApiLevel": 15
+}

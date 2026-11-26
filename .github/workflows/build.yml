@@ -1,0 +1,56 @@
+name: Build
+
+# Every push and pull request is built and tested. Pushing a tag such as v0.1.0.0 also publishes a GitHub release
+# with SubLedger.zip attached, which is the file players' plugin installers download.
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-2022
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v5
+
+    - name: Install .NET
+      uses: actions/setup-dotnet@v5
+      with:
+        dotnet-version: 10.0.x
+
+    - name: Download Dalamud
+      run: |
+        Invoke-WebRequest -Uri https://goatcorp.github.io/dalamud-distrib/latest.zip -OutFile latest.zip
+        Expand-Archive -Force latest.zip "$env:AppData\XIVLauncher\addon\Hooks\dev"
+
+    - name: Build
+      run: dotnet build .\SubLedger.slnx --configuration Release
+
+    - name: Test
+      run: dotnet test .\SubLedger.slnx --configuration Release --no-build
+
+    - name: Store artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: SubLedger
+        path: .\SubLedger\bin\Release\SubLedger\latest.zip
+        if-no-files-found: error
+        retention-days: 7
+
+    - name: Prepare release asset
+      if: startsWith(github.ref, 'refs/tags/')
+      run: Copy-Item .\SubLedger\bin\Release\SubLedger\latest.zip .\SubLedger.zip
+
+    - name: Publish GitHub release
+      if: startsWith(github.ref, 'refs/tags/')
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: gh release create "${{ github.ref_name }}" .\SubLedger.zip --title "SubLedger ${{ github.ref_name }}" --notes "SubLedger ${{ github.ref_name }}. What changed is listed on the plugin's Updates page and in SubLedger/Changelog.cs." --verify-tag
