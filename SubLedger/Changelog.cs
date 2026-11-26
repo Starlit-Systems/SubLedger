@@ -10,6 +10,11 @@ internal static class Changelog
 {
     public static readonly IReadOnlyList<ChangelogEntry> Entries =
     [
+        new("0.2.1.0", new DateOnly(2026, 11, 26),
+        [
+            "Latest voyages on the dashboard is grouped by Free Company: each one gets its own heading and its own row of up to four submarines, wrapping onto more rows when the window is narrow",
+            "Every active submarine is shown; there is no longer a limit of twelve",
+        ]),
         new("0.2.0.0", new DateOnly(2026, 11, 26),
         [
             "New Reports page: pick any period (last 7, 30 or 90 days, this or last week, month or quarter, this year, lifetime, or your own dates) and see its income, daily average, typical day, best day and how many days were recorded",
