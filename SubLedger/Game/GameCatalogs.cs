@@ -19,14 +19,16 @@ internal sealed class GameItemCatalog : IItemCatalog
 internal sealed class GameSectorCatalog : ISectorCatalog
 {
     private readonly ExcelSheet<SubmarineExploration> sheet = Service.DataManager.GetExcelSheet<SubmarineExploration>();
-    private readonly ConcurrentDictionary<uint, (string Letter, string Name)> cache = new();
+    private readonly ConcurrentDictionary<uint, (string Letter, string Name, int Tanks)> cache = new();
 
     public string Letter(uint sectorId) => Lookup(sectorId).Letter;
 
     public string Name(uint sectorId) => Lookup(sectorId).Name;
 
-    private (string Letter, string Name) Lookup(uint sectorId) => cache.GetOrAdd(sectorId, id =>
+    public int Tanks(uint sectorId) => Lookup(sectorId).Tanks;
+
+    private (string Letter, string Name, int Tanks) Lookup(uint sectorId) => cache.GetOrAdd(sectorId, id =>
         sheet.TryGetRow(id, out var row)
-            ? (row.Location.ExtractText(), row.Destination.ExtractText())
-            : (string.Empty, string.Empty));
+            ? (row.Location.ExtractText(), row.Destination.ExtractText(), row.CeruleumTankReq)
+            : (string.Empty, string.Empty, 0));
 }

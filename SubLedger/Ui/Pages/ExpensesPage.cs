@@ -23,6 +23,9 @@ internal sealed class ExpensesPage
     private (long Version, ulong Fc, string Zone, int Cutoff, DateOnly Today) cacheKey;
     private FinanceSummary finance = new();
     private List<LedgerEntry> costs = [];
+    private long tanksTotal;
+    private long tanks30;
+    private DateOnly? firstVoyageDay;
 
     // The form.
     private LedgerEntryKind formKind = LedgerEntryKind.Investment;
@@ -53,6 +56,10 @@ internal sealed class ExpensesPage
         cacheKey = key;
         var days = LedgerAnalytics.Daily(snapshot.Voyages, snapshot.Entries, calendar, fc);
         finance = FinanceAnalytics.Summarize(days, snapshot.Entries, today, fc);
+        var shown = snapshot.Voyages.Where(v => fc == 0 || v.FcId == fc).ToList();
+        tanksTotal = Fuel.Tanks(shown, plugin.Sectors);
+        tanks30 = Fuel.Tanks(shown.Where(v => calendar.DateOf(v.CollectedUnix) >= today.AddDays(-29)), plugin.Sectors);
+        firstVoyageDay = shown.Count > 0 ? calendar.DateOf(shown.Min(v => v.CollectedUnix)) : null;
         costs = [.. snapshot.Entries
             .Where(e => ExpenseCategories.IsCost(e.Kind) && (fc == 0 || e.FcId == fc))
             .OrderByDescending(e => e.BusinessDate).ThenByDescending(e => e.CreatedUnix)];
@@ -89,6 +96,7 @@ internal sealed class ExpensesPage
             Widgets.VSpace(10f);
         }
 
+        DrawFuel(assets);
         DrawForm(assets);
         Widgets.VSpace(10f);
 
@@ -241,6 +249,24 @@ internal sealed class ExpensesPage
             new LineSeries("Invested", Theme.SeriesTeal, [.. timeline.Select(p => p.CumulativeInvested)], Wash: false),
         ], assets);
         Widgets.EndCard();
+    }
+
+    /// <summary>Fuel is bought with company credits, never gil, so it is shown on its own and kept out of every gil figure.</summary>
+    private void DrawFuel(UiAssets assets)
+    {
+        if (tanksTotal == 0)
+            return;
+
+        Widgets.BeginPanel();
+        Widgets.Text("Fuel, paid in company credits", Theme.Text, assets.Heading);
+        var since = firstVoyageDay is { } first ? $" since {first.ToString("d MMMM yyyy", Inv)}" : string.Empty;
+        Widgets.Text(
+            $"{tanksTotal.ToString("N0", Inv)} ceruleum tanks used{since}: {(tanksTotal * Fuel.CreditsPerTank).ToString("N0", Inv)} company credits at {Fuel.CreditsPerTank} each. "
+            + $"In the last 30 days, {tanks30.ToString("N0", Inv)} tanks ({(tanks30 * Fuel.CreditsPerTank).ToString("N0", Inv)} credits), about {(tanks30 / 30.0).ToString("0", Inv)} a day.",
+            Theme.TextSoft);
+        Widgets.Text("Tanks cannot be bought with gil, so they are not part of the costs, profit or payback above. Each voyage's tanks are worked out from the sectors it visited.", Theme.TextDim);
+        Widgets.EndPanel(accent: Theme.Teal);
+        Widgets.VSpace(10f);
     }
 
     private void DrawForm(UiAssets assets)

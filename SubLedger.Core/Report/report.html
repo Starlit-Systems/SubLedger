@@ -231,7 +231,7 @@ footer { color: var(--text-3); font-size: 12.5px; margin-top: 26px; border-top: 
   const items = DATA.items;
   const voyages = DATA.voyages.map((v) => ({
     day: toNum(v[0]), time: v[1], unix: v[2], sub: v[3], fc: subs[v[3]].fc, route: v[4], gil: v[5],
-    loot: v[6].map((l) => ({ item: l[0], qty: l[1], gil: l[2] })),
+    loot: v[6].map((l) => ({ item: l[0], qty: l[1], gil: l[2] })), tanks: v[7] || 0,
   }));
   const entries = DATA.entries.map((e) => ({ day: toNum(e[0]), fc: e[1], kind: e[2], gil: e[3], category: e[4], note: e[5] }));
 
@@ -697,6 +697,9 @@ footer { color: var(--text-3); font-size: 12.5px; margin-top: 26px; border-top: 
     tiles += tile("Days recorded", `${R.recorded} of ${R.coveredDays}`, R.missing || R.zero ? `${R.zero} at zero, ${R.missing} without a record` : "Every day recorded", "--mint", "A day with a record can still earn zero. A day without one had nothing collected, or nothing seen.");
     tiles += tile("At this pace", short(perMonth) + " / month", short(perYear) + " a year", "--gold", "This period's average per day, carried over a month and a year.");
     if (R.invIn) tiles += tile("Invested", short(R.invIn), "One-off purchases in this period", "--mint", exact(R.invIn) + " gil");
+    // Fuel is bought with company credits, never gil, so it is a count beside the gil figures, not one of them.
+    const tanks = R.rangeVoyages.reduce((s, v) => s + v.tanks, 0);
+    if (tanks) tiles += tile("Fuel", exact(tanks) + " tanks", exact(tanks * DATA.creditsPerTank) + " company credits", "--teal", "Ceruleum tanks used by these voyages. They are bought with company credits, not gil, so they are not counted in any gil figure.");
     const tileCount = (tiles.match(/class="tile"/g) || []).length;
 
     const unit = state.group;
@@ -705,7 +708,7 @@ footer { color: var(--text-3); font-size: 12.5px; margin-top: 26px; border-top: 
     const showSubFc = state.fc < 0 && companies.length > 1;
 
     content.innerHTML = `
-      <div class="tiles" style="--cols:${tileCount % 4 === 0 ? 4 : 3}">${tiles}</div>
+      <div class="tiles" style="--cols:${tileCount % 4 === 0 ? 4 : tileCount % 3 === 0 ? 3 : tileCount % 5 === 0 ? 5 : 4}">${tiles}</div>
       <div class="card">
         <div class="card-head"><h2>${esc(chartTitle)}</h2>
           <div class="tools"><span class="pill ${state.chart === "period" ? "on" : ""}" data-chart="period" tabindex="0" role="button">Per ${unit}</span><span class="pill ${state.chart === "running" ? "on" : ""}" data-chart="running" tabindex="0" role="button">Running total</span></div></div>

@@ -126,7 +126,7 @@ public static class ExpenseCategories
         ("Housing plot", LedgerEntryKind.Investment),
         ("Workshop", LedgerEntryKind.Investment),
         ("Other investment", LedgerEntryKind.Investment),
-        ("Ceruleum tanks", LedgerEntryKind.Expense),
+
         ("Repair materials", LedgerEntryKind.Expense),
         ("Other running cost", LedgerEntryKind.Expense),
     ];

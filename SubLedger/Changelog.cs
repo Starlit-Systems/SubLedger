@@ -10,6 +10,11 @@ internal static class Changelog
 {
     public static readonly IReadOnlyList<ChangelogEntry> Entries =
     [
+        new("0.5.1.0", new DateOnly(2026, 11, 26),
+        [
+            "Fuel is tracked in ceruleum tanks and company credits: every voyage's tanks are worked out from the sectors it visited (9 for OJ), shown on the Expenses page, the Reports page and the HTML report",
+            "Ceruleum tanks are no longer offered as a gil running cost, since they can only be bought with company credits",
+        ]),
         new("0.5.0.0", new DateOnly(2026, 11, 26),
         [
             "Sync between computers: under Settings, Sync, choose a folder that Google Drive, Dropbox, OneDrive or similar keeps the same on each computer, and every computer's voyages, spending and corrections end up in one ledger",

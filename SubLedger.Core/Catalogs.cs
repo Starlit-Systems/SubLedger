@@ -15,6 +15,40 @@ public interface ISectorCatalog
     string Letter(uint sectorId);
 
     string Name(uint sectorId);
+
+    /// <summary>Ceruleum tanks the game charges for visiting this sector.</summary>
+    int Tanks(uint sectorId);
+}
+
+/// <summary>
+/// Submarine fuel. Ceruleum tanks cannot be bought with gil, only with company credits, so fuel is tracked in tanks
+/// and credits and never counted as a gil cost.
+/// </summary>
+public static class Fuel
+{
+    /// <summary>Company credits per ceruleum tank at the Free Company credit exchange.</summary>
+    public const int CreditsPerTank = 100;
+
+    /// <summary>Tanks a voyage used: the sum of each visited sector's requirement, as the game charges it.</summary>
+    public static int Tanks(Model.Voyage voyage, ISectorCatalog sectors)
+    {
+        var tanks = 0;
+        foreach (var sector in voyage.SectorIds)
+            tanks += sectors.Tanks(sector);
+        return tanks;
+    }
+
+    public static long Tanks(IEnumerable<Model.Voyage> voyages, ISectorCatalog sectors)
+    {
+        long tanks = 0;
+        foreach (var v in voyages)
+        {
+            if (!v.Deleted)
+                tanks += Tanks(v, sectors);
+        }
+
+        return tanks;
+    }
 }
 
 public static class Valuation

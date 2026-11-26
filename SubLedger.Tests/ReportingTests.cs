@@ -355,7 +355,7 @@ public class HtmlReportTests
         var today = calendar.DateOf(1_780_000_000);
         var start = new SubLedger.Core.Report.ReportStart(new DateRange(today.AddDays(-29), today), RangePreset.Last30Days, PeriodGrouping.Day, 0);
 
-        var html = SubLedger.Core.Report.HtmlReport.Build(ledger.Store.Snapshot(), calendar, today, start, "1.2.3.4", [1, 2, 3], DateTimeOffset.UnixEpoch);
+        var html = SubLedger.Core.Report.HtmlReport.Build(ledger.Store.Snapshot(), calendar, new FakeSectors(), today, start, "1.2.3.4", [1, 2, 3], DateTimeOffset.UnixEpoch);
 
         Assert.StartsWith("<!doctype html>", html);
         Assert.DoesNotContain("__SUBLEDGER_DATA__", html);
@@ -363,6 +363,7 @@ public class HtmlReportTests
         Assert.Contains("data:image/png;base64,AQID", html);
         Assert.Contains("\"version\":\"1.2.3.4\"", html);
         Assert.Contains("Extravagant Salvaged Earring", html);
+        Assert.Contains("\"creditsPerTank\":100", html);
         // A hostile name can never close the data's script element.
         Assert.Equal(2, System.Text.RegularExpressions.Regex.Matches(html, "</script>").Count);
         // Nothing is fetched from the internet.

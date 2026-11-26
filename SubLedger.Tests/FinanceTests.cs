@@ -1,3 +1,4 @@
+using SubLedger.Core;
 using SubLedger.Core.Analytics;
 using SubLedger.Core.Export;
 using SubLedger.Core.Model;
@@ -136,8 +137,8 @@ public class FinanceTests
     {
         LedgerEntry[] costs =
         [
-            Cost(Start.AddDays(2), 30_000, LedgerEntryKind.Expense, "Ceruleum tanks"),
-            Cost(Start.AddDays(20), 99_000, LedgerEntryKind.Expense, "Ceruleum tanks"),
+            Cost(Start.AddDays(2), 30_000, LedgerEntryKind.Expense, "Repair materials"),
+            Cost(Start.AddDays(20), 99_000, LedgerEntryKind.Expense, "Repair materials"),
             Cost(Start, 4_000_000),
         ];
 
@@ -157,7 +158,7 @@ public class FinanceTests
         LedgerEntry[] costs =
         [
             new() { Kind = LedgerEntryKind.Investment, BusinessDate = Start, AmountGil = 16_000_000, Category = "Submarine parts", Note = "4 x Shark-class Hull", FcId = 1 },
-            Cost(Start.AddDays(1), 30_000, LedgerEntryKind.Expense, "Ceruleum tanks"),
+            Cost(Start.AddDays(1), 30_000, LedgerEntryKind.Expense, "Repair materials"),
             new() { Kind = LedgerEntryKind.HistoricalDay, BusinessDate = Start, AmountGil = 5 },
         ];
 
@@ -165,7 +166,7 @@ public class FinanceTests
 
         Assert.Equal(3, lines.Length);
         Assert.Equal("2026-05-01,investment,Submarine parts,4 x Shark-class Hull,16000000,Starlit", lines[1]);
-        Assert.Equal("2026-05-02,running cost,Ceruleum tanks,,30000,Starlit", lines[2]);
+        Assert.Equal("2026-05-02,running cost,Repair materials,,30000,Starlit", lines[2]);
     }
 }
 
@@ -207,4 +208,32 @@ public class MultiCompanyTests
         Assert.Equal(40_000, days[Day].IncomeGil);
         Assert.False(days[Day].ManualExcluded);
     }
+}
+
+public class FuelTests
+{
+    [Fact]
+    public void An_OJ_voyage_uses_nine_tanks_and_nine_hundred_credits()
+    {
+        using var ledger = new TempLedger();
+        var voyage = ledger.Store.RecordVoyage(TempLedger.OjHaul(1_780_000_000)).Voyage!;
+
+        Assert.Equal(9, Fuel.Tanks(voyage, new FakeSectors()));
+        Assert.Equal(900, Fuel.Tanks(voyage, new FakeSectors()) * Fuel.CreditsPerTank);
+    }
+
+    [Fact]
+    public void Removed_voyages_use_no_fuel()
+    {
+        using var ledger = new TempLedger();
+        var a = ledger.Store.RecordVoyage(TempLedger.OjHaul(1_780_000_000, sub: 1)).Voyage!;
+        var b = ledger.Store.RecordVoyage(TempLedger.OjHaul(1_780_000_000, sub: 2)).Voyage!;
+        ledger.Store.SetVoyageDeleted(b.Id, true);
+
+        Assert.Equal(9, Fuel.Tanks([a, b], new FakeSectors()));
+    }
+
+    [Fact]
+    public void Ceruleum_tanks_are_not_offered_as_a_gil_cost()
+        => Assert.DoesNotContain(ExpenseCategories.All, c => c.Name.Contains("Ceruleum", StringComparison.OrdinalIgnoreCase));
 }

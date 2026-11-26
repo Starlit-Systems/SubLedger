@@ -365,7 +365,7 @@ public sealed class Plugin : IDalamudPlugin
                 Log.Debug("Export", $"Report logo not found: {ex.Message}");
             }
 
-            var html = HtmlReport.Build(Store.Snapshot(), calendar, today, new ReportStart(range, preset, grouping, Config.SelectedFreeCompany), Version, logo, DateTimeOffset.Now);
+            var html = HtmlReport.Build(Store.Snapshot(), calendar, Sectors, today, new ReportStart(range, preset, grouping, Config.SelectedFreeCompany), Version, logo, DateTimeOffset.Now);
             var name = $"SubLedger report {today:yyyy-MM-dd}.html";
             var path = Path.Combine(ExportDirectory, name);
             File.WriteAllText(path, html, new UTF8Encoding(false));

@@ -34,6 +34,9 @@ internal sealed class FakeSectors : ISectorCatalog
     public string Letter(uint sectorId) => sectorId switch { J => "J", O => "O", 18 => "R", 26 => "Z", _ => string.Empty };
 
     public string Name(uint sectorId) => $"Sector {sectorId}";
+
+    // As in the game: O needs 6 tanks, J needs 3.
+    public int Tanks(uint sectorId) => sectorId switch { O => 6, J => 3, _ => 1 };
 }
 
 /// <summary>A ledger in a throwaway folder, removed when the test ends.</summary>

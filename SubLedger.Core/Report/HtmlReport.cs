@@ -22,6 +22,7 @@ public static class HtmlReport
     public static string Build(
         LedgerSnapshot snapshot,
         BusinessCalendar calendar,
+        ISectorCatalog sectors,
         DateOnly today,
         ReportStart start,
         string version,
@@ -85,6 +86,7 @@ public static class HtmlReport
                 v.Route,
                 v.TotalGil,
                 loot,
+                Fuel.Tanks(v, sectors),
             ]);
         }
 
@@ -116,6 +118,7 @@ public static class HtmlReport
             today = today.ToString("yyyy-MM-dd", Inv),
             timeZone = calendar.Zone.DisplayName,
             cutoff = $"{cutoff.Hours:00}:{cutoff.Minutes:00}",
+            creditsPerTank = Fuel.CreditsPerTank,
             initial = new
             {
                 from = start.Range.From.ToString("yyyy-MM-dd", Inv),

@@ -273,6 +273,14 @@ internal sealed class ReportsPage
             var t = tiles[i];
             Widgets.StatTile(t.Label, t.Value, t.Detail, t.Accent, size, assets, t.Tip);
         }
+
+        // Fuel is paid in company credits, not gil, so it sits beside the figures rather than in them.
+        var tanks = Fuel.Tanks(voyagesInRange, plugin.Sectors);
+        if (tanks > 0)
+        {
+            Widgets.VSpace(2f);
+            Widgets.Text($"Fuel: {tanks.ToString("N0", Inv)} ceruleum tanks used in this period, {(tanks * Fuel.CreditsPerTank).ToString("N0", Inv)} company credits.", Theme.TextDim);
+        }
     }
 
     private void DrawChart(UiAssets assets)
