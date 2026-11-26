@@ -26,11 +26,13 @@ That one address lists every Starlit Systems plugin. If you already added it for
 - **Exact gil.** Values are stored to the single gil. Short forms such as `1.05m` are only a display option.
 - **Imports your history.** If you have used SubmarineTracker, its past voyages can be copied into the ledger with one click.
 - **Per Free Company.** Each Free Company's submarines are tracked separately, with a combined view when you have more than one.
+- **Reports for any period.** Preset or custom date ranges, grouped by day, week, month or quarter, with income charts, a breakdown by item, submarine or route, and export to CSV or JSON.
+- **Brings in your own records.** A hand-kept list such as `Day 1: 125k` or a two-column spreadsheet can be imported. Where a day has both a hand-kept total and recorded voyages, the voyages count and the total is kept on file, so nothing is doubled.
 - **Looks after its data.** A dated backup is made every day, and if the ledger file is ever damaged SubLedger restores the newest healthy backup on its own.
 
 ## Status
 
-This is an early version. Recording, the ledger, the SubmarineTracker import, the dashboard and the voyage list are in. Still to come: importing hand-kept totals from text and spreadsheet files, manual corrections, date-range reports, CSV and JSON export, and a standalone HTML report with charts.
+This is an early version. Recording, the ledger, the SubmarineTracker import, the dashboard, date-range reports with charts, CSV and JSON export, importing hand-kept totals from text and spreadsheet files, and manual corrections are in. Still to come: a standalone HTML report, expense and return-on-investment tracking, and merging ledgers kept on several computers.
 
 ## Building from source
 

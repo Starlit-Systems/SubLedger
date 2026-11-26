@@ -33,6 +33,12 @@ internal static class Theme
     public static readonly Vector4 Blue = new(0.430f, 0.670f, 0.980f, 1.00f);
     public static readonly Vector4 Violet = new(0.660f, 0.520f, 0.960f, 1.00f);
 
+    // Chart marks. Deeper steps of the gold and teal: the brand tones are too light to fill large areas on a dark
+    // surface. This pair passes the palette validator against the card surface (lightness band, colour-blind
+    // separation, contrast).
+    public static readonly Vector4 SeriesGold = new(0.769f, 0.580f, 0.227f, 1.00f);
+    public static readonly Vector4 SeriesTeal = new(0.122f, 0.604f, 0.639f, 1.00f);
+
     // Text.
     public static readonly Vector4 Text = new(0.930f, 0.950f, 0.970f, 1.00f);
     public static readonly Vector4 TextSoft = new(0.730f, 0.780f, 0.835f, 1.00f);

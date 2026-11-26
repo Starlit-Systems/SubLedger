@@ -10,6 +10,16 @@ internal static class Changelog
 {
     public static readonly IReadOnlyList<ChangelogEntry> Entries =
     [
+        new("0.2.0.0", new DateOnly(2026, 11, 26),
+        [
+            "New Reports page: pick any period (last 7, 30 or 90 days, this or last week, month or quarter, this year, lifetime, or your own dates) and see its income, daily average, typical day, best day and how many days were recorded",
+            "Income chart per day, week, month or quarter, with a 7-day average line on daily views, plus a running-total view",
+            "Where the gil came from: a ranked breakdown by item, by submarine or by route",
+            "Export any period as spreadsheet files (CSV) or one data file (JSON), exact to the gil, into Documents\\SubLedger",
+            "Hand-kept records: paste or load a day-by-day list (\"Day 1: 125k\", or a two-column spreadsheet) under Settings, with a preview of what will count before anything is saved; an import can be removed again as a whole",
+            "Corrections: add or subtract gil on any day by hand",
+            "Chart bars and lines use calmer tones that are easier to tell apart, including for colour-blind readers",
+        ]),
         new("0.1.1.0", new DateOnly(2026, 11, 26),
         [
             "Latest voyages on the dashboard is now one card per submarine, each showing its last five voyages",

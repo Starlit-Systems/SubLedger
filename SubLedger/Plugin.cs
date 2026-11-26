@@ -1,13 +1,19 @@
 using System;
+using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using Dalamud.Game.Command;
+using Dalamud.Interface.ImGuiFileDialog;
 using Dalamud.Interface.Windowing;
 using Dalamud.Plugin;
 using SubLedger.Core;
 using SubLedger.Core.Analytics;
 using SubLedger.Core.Capture;
+using SubLedger.Core.Export;
+using SubLedger.Core.Model;
 using SubLedger.Core.Import;
 using SubLedger.Core.Storage;
 using SubLedger.Game;
@@ -59,10 +65,11 @@ public sealed class Plugin : IDalamudPlugin
 
         Service.CommandManager.AddHandler(CommandName, new CommandInfo(OnCommand)
         {
-            HelpMessage = "Open SubLedger. /subledger voyages | console | settings | about",
+            HelpMessage = "Open SubLedger. /subledger reports | voyages | console | settings | about",
         });
 
         Service.PluginInterface.UiBuilder.Draw += windowSystem.Draw;
+        Service.PluginInterface.UiBuilder.Draw += FileDialogs.Draw;
         Service.PluginInterface.UiBuilder.OpenMainUi += OpenMain;
         Service.PluginInterface.UiBuilder.OpenConfigUi += OpenSettings;
     }
@@ -86,6 +93,16 @@ public sealed class Plugin : IDalamudPlugin
     public bool ImportRunning { get; private set; }
 
     public bool PacketTriggerAvailable => capture?.PacketTriggerAvailable ?? false;
+
+    /// <summary>The file picker used when loading a hand-kept list.</summary>
+    public FileDialogManager FileDialogs { get; } = new();
+
+    /// <summary>What the last export did, for the Reports page.</summary>
+    public string ExportStatus { get; private set; } = string.Empty;
+    public bool ExportRunning { get; private set; }
+
+    /// <summary>Exports go to a SubLedger folder in the user's Documents, where they are easy to find.</summary>
+    public string ExportDirectory => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "SubLedger");
 
     /// <summary>The time zone and day cutoff the user chose, rebuilt when either changes.</summary>
     public BusinessCalendar Calendar
@@ -244,6 +261,86 @@ public sealed class Plugin : IDalamudPlugin
         }
     }
 
+    private ExportContext NewExportContext()
+    {
+        var names = Store.Snapshot().FreeCompanies.ToDictionary(c => c.FcId, c => c.DisplayName);
+        return new ExportContext(Calendar, names, Sectors, Version);
+    }
+
+    private static string ExportName(DateRange range, string suffix)
+        => $"SubLedger {range.From:yyyy-MM-dd} to {range.To:yyyy-MM-dd} {suffix}";
+
+    /// <summary>Writes the period's voyages, items and daily totals as three spreadsheet files.</summary>
+    public void ExportCsv(RangeReport report, IReadOnlyList<Voyage> voyages, SortedDictionary<DateOnly, DayTotal> days)
+        => RunExport("Export spreadsheets", () =>
+        {
+            var context = NewExportContext();
+            // The byte-order mark makes Excel read the files as UTF-8, so names with accents survive.
+            var utf8 = new UTF8Encoding(encoderShouldEmitUTF8Identifier: true);
+            File.WriteAllText(Path.Combine(ExportDirectory, ExportName(report.Range, "voyages.csv")), LedgerExport.VoyagesCsv(voyages, context), utf8);
+            File.WriteAllText(Path.Combine(ExportDirectory, ExportName(report.Range, "items.csv")), LedgerExport.LootCsv(voyages, context), utf8);
+            File.WriteAllText(Path.Combine(ExportDirectory, ExportName(report.Range, "daily.csv")), LedgerExport.DailyCsv(days, report.Range), utf8);
+            return $"Three spreadsheet files written to {ExportDirectory}";
+        });
+
+    /// <summary>Writes the period as one JSON document.</summary>
+    public void ExportJson(RangeReport report, IReadOnlyList<Voyage> voyages, SortedDictionary<DateOnly, DayTotal> days)
+        => RunExport("Export data file", () =>
+        {
+            var name = ExportName(report.Range, "data.json");
+            File.WriteAllText(Path.Combine(ExportDirectory, name), LedgerExport.Json(report, voyages, days, NewExportContext(), DateTimeOffset.UtcNow), new UTF8Encoding(false));
+            return $"{name} written to {ExportDirectory}";
+        });
+
+    private void RunExport(string name, Func<string> export)
+    {
+        if (ExportRunning)
+            return;
+
+        ExportRunning = true;
+        Worker.Enqueue(name, () =>
+        {
+            try
+            {
+                Directory.CreateDirectory(ExportDirectory);
+                ExportStatus = export();
+                Log.Info("Export", ExportStatus + ".");
+            }
+            catch (Exception ex)
+            {
+                ExportStatus = $"Export failed: {ex.Message}";
+                Log.Error("Export", name + " failed", ex);
+            }
+            finally
+            {
+                ExportRunning = false;
+            }
+        });
+    }
+
+    public void OpenExportFolder()
+    {
+        try
+        {
+            Directory.CreateDirectory(ExportDirectory);
+            Process.Start(new ProcessStartInfo(ExportDirectory) { UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            Log.Warning("Export", $"Could not open {ExportDirectory}: {ex.Message}");
+        }
+    }
+
+    /// <summary>The Free Company a hand-entered record belongs to: the one being viewed, or the only one there is.</summary>
+    public ulong ManualEntryFreeCompany()
+    {
+        if (Config.SelectedFreeCompany != 0)
+            return Config.SelectedFreeCompany;
+
+        var companies = Store.Snapshot().FreeCompanies;
+        return companies.Count == 1 ? companies[0].FcId : 0;
+    }
+
     public void BackupNow()
     {
         Worker.Enqueue("Manual backup", () => Store.WithExclusiveAccess(() => Backups.Create("manual")));
@@ -277,6 +374,7 @@ public sealed class Plugin : IDalamudPlugin
         switch (args.Trim().ToLowerInvariant())
         {
             case "voyages": MainWindow.ShowPage(Page.Voyages); break;
+            case "reports" or "report": MainWindow.ShowPage(Page.Reports); break;
             case "console" or "log": MainWindow.ShowPage(Page.Console); break;
             case "settings" or "config": MainWindow.ShowPage(Page.Settings); break;
             case "updates": MainWindow.ShowPage(Page.Updates); break;
@@ -292,6 +390,7 @@ public sealed class Plugin : IDalamudPlugin
     public void Dispose()
     {
         Service.PluginInterface.UiBuilder.Draw -= windowSystem.Draw;
+        Service.PluginInterface.UiBuilder.Draw -= FileDialogs.Draw;
         Service.PluginInterface.UiBuilder.OpenMainUi -= OpenMain;
         Service.PluginInterface.UiBuilder.OpenConfigUi -= OpenSettings;
         Service.CommandManager.RemoveHandler(CommandName);

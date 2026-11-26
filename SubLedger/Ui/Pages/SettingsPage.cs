@@ -20,9 +20,11 @@ internal sealed class SettingsPage
         Capture,
         Data,
         Import,
+        Manual,
     }
 
     private readonly Plugin plugin;
+    private readonly ManualRecordsSection manualRecords;
     private Tab tab = Tab.General;
     private string zoneFilter = string.Empty;
     private IReadOnlyList<TimeZoneInfo>? zones;
@@ -35,6 +37,7 @@ internal sealed class SettingsPage
     public SettingsPage(Plugin plugin)
     {
         this.plugin = plugin;
+        manualRecords = new ManualRecordsSection(plugin);
     }
 
     public void Draw()
@@ -42,7 +45,7 @@ internal sealed class SettingsPage
         var assets = plugin.Assets;
         Widgets.PageHeader("Settings", "Changes apply straight away.", assets);
 
-        var tabs = new[] { (Tab.General, "General"), (Tab.Capture, "Recording"), (Tab.Data, "Ledger & backups"), (Tab.Import, "Import") };
+        var tabs = new[] { (Tab.General, "General"), (Tab.Capture, "Recording"), (Tab.Data, "Ledger & backups"), (Tab.Import, "SubmarineTracker"), (Tab.Manual, "Hand-kept records") };
         for (var i = 0; i < tabs.Length; i++)
         {
             if (i > 0)
@@ -59,6 +62,7 @@ internal sealed class SettingsPage
             case Tab.Capture: DrawCapture(assets); break;
             case Tab.Data: DrawData(assets); break;
             case Tab.Import: DrawImport(assets); break;
+            case Tab.Manual: manualRecords.Draw(assets); break;
         }
 
         Widgets.VSpace(10f);
@@ -322,13 +326,6 @@ internal sealed class SettingsPage
             }
         }
 
-        Widgets.EndPanel();
-        Widgets.VSpace(12f);
-
-        Widgets.SectionLabel("Hand-kept records", assets);
-        Widgets.BeginPanel();
-        Widgets.Text("Text lists and spreadsheets", Theme.Text);
-        Widgets.Text("Importing your own day-by-day totals (\"Day 1: 125k\", or a two-column spreadsheet) arrives in the next update.", Theme.TextDim);
         Widgets.EndPanel();
     }
 

@@ -610,6 +610,31 @@ public sealed class LedgerDatabase
         cmd.ExecuteNonQuery();
     }
 
+    /// <summary>Flags several entries as deleted (or not) in one transaction.</summary>
+    public void SetEntriesDeleted(IReadOnlyCollection<string> ids, bool deleted, long updatedUnix)
+    {
+        if (ids.Count == 0)
+            return;
+
+        using var conn = Open();
+        using var tx = conn.BeginTransaction();
+        using var cmd = conn.CreateCommand();
+        cmd.Transaction = tx;
+        cmd.CommandText = "UPDATE ledger_entries SET deleted = $deleted, updated_unix = $updated WHERE id = $id;";
+        cmd.Parameters.AddWithValue("$deleted", deleted ? 1 : 0);
+        cmd.Parameters.AddWithValue("$updated", updatedUnix);
+        var id = cmd.CreateParameter();
+        id.ParameterName = "$id";
+        cmd.Parameters.Add(id);
+        foreach (var entryId in ids)
+        {
+            id.Value = entryId;
+            cmd.ExecuteNonQuery();
+        }
+
+        tx.Commit();
+    }
+
     public string? GetMeta(string key)
     {
         using var conn = Open();

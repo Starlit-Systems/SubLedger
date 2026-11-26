@@ -463,6 +463,31 @@ public sealed class LedgerStore
         }
     }
 
+    /// <summary>Removes every entry that came in with one import. Returns how many were removed.</summary>
+    public int DeleteBatch(string batchId)
+    {
+        if (string.IsNullOrEmpty(batchId))
+            return 0;
+
+        lock (gate)
+        {
+            var batch = entries.Where(e => !e.Deleted && e.BatchId == batchId).ToList();
+            if (batch.Count == 0)
+                return 0;
+
+            var now = Now();
+            db.SetEntriesDeleted([.. batch.Select(e => e.Id)], true, now);
+            foreach (var entry in batch)
+            {
+                entry.Deleted = true;
+                entry.UpdatedUnix = now;
+            }
+
+            Touch();
+            return batch.Count;
+        }
+    }
+
     public LedgerEntry NewEntry(LedgerEntryKind kind, DateOnly date, long amountGil, ulong fcId, string note, string source, string batchId = "")
     {
         var now = Now();

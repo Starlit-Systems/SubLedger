@@ -11,6 +11,7 @@ namespace SubLedger.Ui;
 internal enum Page
 {
     Dashboard,
+    Reports,
     Voyages,
     Console,
     Updates,
@@ -23,6 +24,7 @@ internal sealed class MainWindow : Window
 {
     private readonly Plugin plugin;
     private readonly DashboardPage dashboard;
+    private readonly ReportsPage reports;
     private readonly VoyagesPage voyages;
     private readonly ConsolePage console;
     private readonly UpdatesPage updates;
@@ -34,6 +36,7 @@ internal sealed class MainWindow : Window
     {
         this.plugin = plugin;
         dashboard = new DashboardPage(plugin);
+        reports = new ReportsPage(plugin);
         voyages = new VoyagesPage(plugin);
         console = new ConsolePage(plugin);
         updates = new UpdatesPage(plugin);
@@ -96,6 +99,7 @@ internal sealed class MainWindow : Window
                 switch (page)
                 {
                     case Page.Dashboard: dashboard.Draw(); break;
+                    case Page.Reports: reports.Draw(); break;
                     case Page.Voyages: voyages.Draw(); break;
                     case Page.Console: console.Draw(); break;
                     case Page.Updates: updates.Draw(); break;
@@ -220,6 +224,7 @@ internal sealed class MainWindow : Window
     private void DrawSidebar(UiAssets assets)
     {
         Tab("Dashboard", FontAwesomeIcon.ChartLine, Page.Dashboard);
+        Tab("Reports", FontAwesomeIcon.ChartBar, Page.Reports);
         Tab("Voyages", FontAwesomeIcon.Ship, Page.Voyages);
         Tab("Console", FontAwesomeIcon.Terminal, Page.Console, plugin.LedgerError is not null);
         Tab("Updates", FontAwesomeIcon.Newspaper, Page.Updates, plugin.Config.LastSeenChangelog != Changelog.Latest.Version);
