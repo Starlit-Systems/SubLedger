@@ -488,7 +488,7 @@ public sealed class LedgerStore
         }
     }
 
-    public LedgerEntry NewEntry(LedgerEntryKind kind, DateOnly date, long amountGil, ulong fcId, string note, string source, string batchId = "")
+    public LedgerEntry NewEntry(LedgerEntryKind kind, DateOnly date, long amountGil, ulong fcId, string note, string source, string batchId = "", string category = "")
     {
         var now = Now();
         return new LedgerEntry
@@ -497,6 +497,7 @@ public sealed class LedgerStore
             Kind = kind,
             BusinessDate = date,
             AmountGil = amountGil,
+            Category = category,
             Note = note,
             Source = source,
             BatchId = batchId,

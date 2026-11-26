@@ -109,8 +109,31 @@ public enum LedgerEntryKind
     /// <summary>A manual correction, positive or negative, added on top of the day's income.</summary>
     Adjustment = 1,
 
-    /// <summary>Reserved for expense tracking.</summary>
+    /// <summary>A running cost of keeping the submarines going (fuel, repair materials). Amount is the gil spent, positive.</summary>
     Expense = 2,
+
+    /// <summary>A one-off purchase the fleet has to earn back (submarine parts, the workshop, the plot). Amount is positive.</summary>
+    Investment = 3,
+}
+
+/// <summary>The named kinds of spending offered when an expense is entered.</summary>
+public static class ExpenseCategories
+{
+    public static readonly (string Name, LedgerEntryKind Kind)[] All =
+    [
+        ("Submarine parts", LedgerEntryKind.Investment),
+        ("Free Company house", LedgerEntryKind.Investment),
+        ("Housing plot", LedgerEntryKind.Investment),
+        ("Workshop", LedgerEntryKind.Investment),
+        ("Other investment", LedgerEntryKind.Investment),
+        ("Ceruleum tanks", LedgerEntryKind.Expense),
+        ("Repair materials", LedgerEntryKind.Expense),
+        ("Other running cost", LedgerEntryKind.Expense),
+    ];
+
+    public static IEnumerable<string> For(LedgerEntryKind kind) => All.Where(c => c.Kind == kind).Select(c => c.Name);
+
+    public static bool IsCost(LedgerEntryKind kind) => kind is LedgerEntryKind.Expense or LedgerEntryKind.Investment;
 }
 
 /// <summary>A manual line in the ledger: a historical day total, a correction, or (later) an expense.</summary>

@@ -65,7 +65,7 @@ public sealed class Plugin : IDalamudPlugin
 
         Service.CommandManager.AddHandler(CommandName, new CommandInfo(OnCommand)
         {
-            HelpMessage = "Open SubLedger. /subledger reports | voyages | console | settings | about",
+            HelpMessage = "Open SubLedger. /subledger reports | expenses | voyages | console | settings | about",
         });
 
         Service.PluginInterface.UiBuilder.Draw += windowSystem.Draw;
@@ -280,7 +280,13 @@ public sealed class Plugin : IDalamudPlugin
             File.WriteAllText(Path.Combine(ExportDirectory, ExportName(report.Range, "voyages.csv")), LedgerExport.VoyagesCsv(voyages, context), utf8);
             File.WriteAllText(Path.Combine(ExportDirectory, ExportName(report.Range, "items.csv")), LedgerExport.LootCsv(voyages, context), utf8);
             File.WriteAllText(Path.Combine(ExportDirectory, ExportName(report.Range, "daily.csv")), LedgerExport.DailyCsv(days, report.Range), utf8);
-            return $"Three spreadsheet files written to {ExportDirectory}";
+            var costs = Store.Snapshot().Entries.Where(e => ExpenseCategories.IsCost(e.Kind) && report.Range.Contains(e.BusinessDate)
+                && (Config.SelectedFreeCompany == 0 || e.FcId == Config.SelectedFreeCompany)).ToList();
+            if (costs.Count == 0)
+                return $"Three spreadsheet files written to {ExportDirectory}";
+
+            File.WriteAllText(Path.Combine(ExportDirectory, ExportName(report.Range, "expenses.csv")), LedgerExport.CostsCsv(costs, context), utf8);
+            return $"Four spreadsheet files written to {ExportDirectory}";
         });
 
     /// <summary>Writes the period as one JSON document.</summary>
@@ -288,7 +294,8 @@ public sealed class Plugin : IDalamudPlugin
         => RunExport("Export data file", () =>
         {
             var name = ExportName(report.Range, "data.json");
-            File.WriteAllText(Path.Combine(ExportDirectory, name), LedgerExport.Json(report, voyages, days, NewExportContext(), DateTimeOffset.UtcNow), new UTF8Encoding(false));
+            var costs = Store.Snapshot().Entries.Where(e => Config.SelectedFreeCompany == 0 || e.FcId == Config.SelectedFreeCompany);
+            File.WriteAllText(Path.Combine(ExportDirectory, name), LedgerExport.Json(report, voyages, days, NewExportContext(), DateTimeOffset.UtcNow, costs), new UTF8Encoding(false));
             return $"{name} written to {ExportDirectory}";
         });
 
@@ -375,6 +382,7 @@ public sealed class Plugin : IDalamudPlugin
         {
             case "voyages": MainWindow.ShowPage(Page.Voyages); break;
             case "reports" or "report": MainWindow.ShowPage(Page.Reports); break;
+            case "expenses" or "costs" or "payback": MainWindow.ShowPage(Page.Expenses); break;
             case "console" or "log": MainWindow.ShowPage(Page.Console); break;
             case "settings" or "config": MainWindow.ShowPage(Page.Settings); break;
             case "updates": MainWindow.ShowPage(Page.Updates); break;

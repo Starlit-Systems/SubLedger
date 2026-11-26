@@ -23,6 +23,7 @@ internal sealed class DashboardPage
     private LedgerSummary summary = new();
     private List<GroupStats> bySubmarine = [];
     private List<GroupStats> byRoute = [];
+    private FinanceSummary finance = new();
     private sealed record SubLatest(uint Register, string Name, IReadOnlyList<Voyage> Voyages);
 
     /// <summary>One Free Company's current submarines (a workshop holds at most four), in registration order.</summary>
@@ -59,6 +60,7 @@ internal sealed class DashboardPage
         summary = LedgerAnalytics.Summarize(days, today);
         bySubmarine = LedgerAnalytics.BySubmarine(snapshot.Voyages, fc);
         byRoute = LedgerAnalytics.ByRoute(snapshot.Voyages, fc);
+        finance = FinanceAnalytics.Summarize(days, snapshot.Entries, today, fc);
 
         // The last five voyages of every submarine, grouped by Free Company. Voyages arrive newest first, so the first
         // of each group is the most recent. Submarines that have not sailed for a long while (replaced or retired) are
@@ -117,6 +119,7 @@ internal sealed class DashboardPage
 
         DrawTiles(assets);
         Widgets.VSpace(6f);
+        DrawPaybackStrip(assets);
         DrawChart(assets);
         Widgets.VSpace(6f);
         DrawBreakdowns(assets);
@@ -207,6 +210,42 @@ internal sealed class DashboardPage
             var t = tiles[i];
             Widgets.StatTile(t.Label, t.Value, t.Detail, t.Accent, size, assets, t.Tip);
         }
+    }
+
+    /// <summary>One line on where the fleet stands against what it cost, when any spending has been entered.</summary>
+    private void DrawPaybackStrip(UiAssets assets)
+    {
+        if (finance.RecoveredShare is not { } share)
+            return;
+
+        var paid = finance.PaidBackOn is not null;
+        var accent = paid ? Theme.Mint : Theme.Amber;
+        Widgets.BeginPanel();
+        var percent = (share * 100).ToString(share >= 10 ? "N0" : "0.#", CultureInfo.InvariantCulture) + "%";
+        var text = paid
+            ? $"Paid back on {finance.PaidBackOn!.Value.ToString("d MMM yyyy", CultureInfo.InvariantCulture)} · {percent} of the {GilFormat.Short(finance.InvestedGil)} invested · {GilFormat.Short(finance.ProfitGil)} profit"
+            : $"{percent} of the {GilFormat.Short(finance.InvestedGil)} invested is paid back · {GilFormat.Short(-finance.ProfitGil)} to go"
+              + (finance.ProjectedPaybackOn is { } projected ? $" · around {projected.ToString("d MMM yyyy", CultureInfo.InvariantCulture)}" : string.Empty);
+        Widgets.Text(text, Theme.Text);
+
+        var drawList = ImGui.GetWindowDrawList();
+        var left = Widgets.PanelLeft;
+        var width = Widgets.PanelRight - left;
+        var top = ImGui.GetCursorScreenPos().Y + Theme.S(2f);
+        var height = Theme.S(6f);
+        var scale = Math.Max(1.0, share);
+        drawList.AddRectFilled(new Vector2(left, top), new Vector2(left + width, top + height), Theme.U32(Theme.Mix(Theme.Card, accent, 0.16f)), height * 0.5f);
+        drawList.AddRectFilled(new Vector2(left, top), new Vector2(left + (float)(width * Math.Clamp(share, 0, scale) / scale), top + height), Theme.U32(accent), height * 0.5f);
+        if (share > 1)
+        {
+            var x = left + (float)(width / scale);
+            drawList.AddLine(new Vector2(x, top - Theme.S(3f)), new Vector2(x, top + height + Theme.S(3f)), Theme.U32(Theme.Text), Theme.S(2f));
+        }
+
+        ImGui.Dummy(new Vector2(width, height + Theme.S(4f)));
+        Widgets.EndPanel(accent: accent);
+        Widgets.Tooltip("Earnings after running costs against everything invested. The Expenses page has the details.");
+        Widgets.VSpace(6f);
     }
 
     private void DrawChart(UiAssets assets)

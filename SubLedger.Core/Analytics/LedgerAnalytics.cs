@@ -114,8 +114,9 @@ public static class LedgerAnalytics
 
         foreach (var e in entries)
         {
-            // Entries not tied to a Free Company only show in the combined view.
-            if (e.Deleted || (fcId != 0 && e.FcId != fcId))
+            // Entries not tied to a Free Company only show in the combined view. Spending is not income and does not
+            // make a day "recorded"; it is handled by FinanceAnalytics.
+            if (e.Deleted || (fcId != 0 && e.FcId != fcId) || ExpenseCategories.IsCost(e.Kind))
                 continue;
 
             var day = days.GetValueOrDefault(e.BusinessDate) ?? new DayTotal(e.BusinessDate);

@@ -219,19 +219,13 @@ internal sealed class ReportsPage
 
     private void DrawTiles(UiAssets assets)
     {
-        var gap = Theme.S(10f);
-        var available = ImGui.GetContentRegionAvail().X;
-        var perRow = available >= Theme.S(860f) ? 3 : 2;
-        var width = MathF.Floor((available - gap * (perRow - 1)) / perRow);
-        var size = new Vector2(width, Theme.S(104f));
-
         var best = report.BestDay;
         var daysDetail = report.MissingDays == 0 && report.ZeroDays == 0
             ? "Every day recorded"
             : $"{report.ZeroDays} at zero, {report.MissingDays} without a record";
         var covered = report.Covered?.Days ?? 0;
 
-        var tiles = new (string Label, string Value, string? Detail, Vector4 Accent, string Tip)[]
+        var tiles = new List<(string Label, string Value, string? Detail, Vector4 Accent, string Tip)>
         {
             ("Income", Gil(report.TotalGil), $"{report.Voyages.ToString("N0", Inv)} {(report.Voyages == 1 ? "voyage" : "voyages")}", Theme.Gold,
                 $"{GilFormat.Exact(report.TotalGil)} gil in this period."
@@ -249,7 +243,23 @@ internal sealed class ReportsPage
                 $"{report.RecordedDays} days have a record.\n{report.ZeroDays} of those earned nothing.\n{report.MissingDays} days have no record at all: nothing was collected, or it was not seen."),
         };
 
-        for (var i = 0; i < tiles.Length; i++)
+        // Spending in the period adds two tiles: six become eight, laid out four by two when there is room.
+        if (report.RunningCostsGil != 0 || report.InvestedGil != 0)
+        {
+            tiles.Insert(1, ("After running costs", Gil(report.NetGil), $"{GilFormat.Short(report.RunningCostsGil)} spent on running", Theme.Violet,
+                $"{GilFormat.Exact(report.TotalGil)} gil earned, less {GilFormat.Exact(report.RunningCostsGil)} gil of running costs dated in this period: {GilFormat.Exact(report.NetGil)} gil."));
+            tiles.Add(("Invested", Gil(report.InvestedGil), "One-off purchases in this period", Theme.Mint,
+                $"{GilFormat.Exact(report.InvestedGil)} gil of parts, housing and other investments dated in this period. The Expenses page shows the payback."));
+        }
+
+        var gap = Theme.S(10f);
+        var available = ImGui.GetContentRegionAvail().X;
+        var wide = tiles.Count == 8 ? Theme.S(720f) : Theme.S(860f);
+        var perRow = available >= wide ? (tiles.Count == 8 ? 4 : 3) : 2;
+        var width = MathF.Floor((available - gap * (perRow - 1)) / perRow);
+        var size = new Vector2(width, Theme.S(104f));
+
+        for (var i = 0; i < tiles.Count; i++)
         {
             if (i % perRow != 0)
                 ImGui.SameLine(0, gap);

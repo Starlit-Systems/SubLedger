@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
 using Dalamud.Bindings.ImGui;
 using SubLedger.Core;
@@ -9,6 +10,9 @@ namespace SubLedger.Ui;
 /// <summary>One point on the time axis. Missing means "no record at all", which is not the same as a zero.</summary>
 /// <param name="AxisGroup">What the label belongs to (a month name, a year). Shown beside the label whenever it changes.</param>
 internal readonly record struct ChartBar(string AxisLabel, string AxisGroup, long Value, bool Missing, string TooltipTitle, string TooltipDetail, bool Emphasis);
+
+/// <summary>One line on a line chart. Every series of a chart shares the chart's single value axis.</summary>
+internal readonly record struct LineSeries(string Name, Vector4 Color, IReadOnlyList<long> Values, bool Wash);
 
 /// <summary>One row of a ranked breakdown.</summary>
 internal readonly record struct RankedItem(string Label, long Value, string Detail);
@@ -171,6 +175,111 @@ internal static class BarChart
 
             BeginTip(point.TooltipTitle);
             Widgets.Text($"{GilFormat.Exact(point.Value)} gil", Theme.Text, assets.Heading);
+            if (!string.IsNullOrEmpty(point.TooltipDetail))
+                Widgets.Text(point.TooltipDetail, Theme.TextDim);
+            EndTip();
+        }
+    }
+
+    /// <summary>
+    /// Several running totals over the same days, on one shared axis, with a legend and the final value of each
+    /// line written at its end. <paramref name="points"/> supplies the axis labels and the hover titles.
+    /// </summary>
+    public static void DrawLines(Vector2 size, IReadOnlyList<ChartBar> points, IReadOnlyList<LineSeries> series, UiAssets assets)
+    {
+        var origin = ImGui.GetCursorScreenPos();
+        var drawList = ImGui.GetWindowDrawList();
+        ImGui.Dummy(size);
+        if (points.Count < 2 || series.Count == 0 || size.X < Theme.S(120f) || size.Y < Theme.S(100f))
+            return;
+
+        long max = 1;
+        foreach (var s in series)
+        {
+            foreach (var value in s.Values)
+                max = Math.Max(max, value);
+        }
+
+        var legendHeight = 0f;
+        if (series.Count > 1)
+        {
+            legendHeight = Theme.S(24f);
+            var textHeight = Widgets.Measure("A", assets.Small).Y;
+            var x = origin.X + Theme.S(2f);
+            var mid = origin.Y + Theme.S(2f) + textHeight * 0.5f;
+            foreach (var s in series)
+            {
+                drawList.AddLine(new Vector2(x, mid), new Vector2(x + Theme.S(16f), mid), Theme.U32(s.Color), Theme.S(2f));
+                x += Theme.S(22f);
+                Widgets.TextAt(drawList, new Vector2(x, origin.Y + Theme.S(2f)), s.Name, Theme.TextSoft, assets.Small);
+                x += Widgets.Measure(s.Name, assets.Small).X + Theme.S(18f);
+            }
+        }
+
+        var plot = Frame(drawList, origin + new Vector2(0, legendHeight), size - new Vector2(0, legendHeight), points, max, assets);
+
+        foreach (var s in series)
+        {
+            if (s.Values.Count != points.Count)
+                continue;
+
+            if (s.Wash)
+            {
+                var wash = Theme.U32(Theme.Alpha(s.Color, 0.10f));
+                for (var i = 1; i < s.Values.Count; i++)
+                {
+                    var a = new Vector2(plot.X(i - 1), plot.Y(s.Values[i - 1]));
+                    var b = new Vector2(plot.X(i), plot.Y(s.Values[i]));
+                    drawList.AddQuadFilled(a, b, new Vector2(b.X, plot.Max.Y), new Vector2(a.X, plot.Max.Y), wash);
+                }
+            }
+
+            DrawLine(drawList, plot, s.Values, s.Color);
+        }
+
+        // End labels: the last value of each line, nudged apart only if they would overlap.
+        var labelHeight = Widgets.Measure("0", assets.Small).Y;
+        var placed = new List<float>();
+        foreach (var s in series.OrderBy(s => s.Values.Count == 0 ? 0 : -s.Values[^1]))
+        {
+            if (s.Values.Count != points.Count)
+                continue;
+
+            var end = new Vector2(plot.X(points.Count - 1), plot.Y(s.Values[^1]));
+            Dot(drawList, end, s.Color);
+            var text = GilFormat.Short(s.Values[^1]);
+            var textSize = Widgets.Measure(text, assets.Small);
+            var y = MathF.Max(plot.Min.Y, end.Y - textSize.Y - Theme.S(7f));
+            foreach (var other in placed)
+            {
+                if (MathF.Abs(other - y) < labelHeight + Theme.S(2f))
+                    y = other + labelHeight + Theme.S(2f);
+            }
+
+            placed.Add(y);
+            var pos = new Vector2(end.X - textSize.X - Theme.S(10f), y);
+            drawList.AddRectFilled(pos - Theme.S(3f, 1f), pos + textSize + Theme.S(3f, 1f), Theme.U32(Theme.Alpha(Theme.Card, 0.85f)), Theme.S(3f));
+            Widgets.TextAt(drawList, pos, text, Theme.Text, assets.Small);
+        }
+
+        if (plot.Hovered >= 0)
+        {
+            var x = plot.X(plot.Hovered);
+            drawList.AddLine(new Vector2(x, plot.Min.Y), new Vector2(x, plot.Max.Y), Theme.U32(Theme.Border));
+            foreach (var s in series)
+            {
+                if (s.Values.Count == points.Count)
+                    Dot(drawList, new Vector2(x, plot.Y(s.Values[plot.Hovered])), s.Color);
+            }
+
+            var point = points[plot.Hovered];
+            BeginTip(point.TooltipTitle);
+            foreach (var s in series)
+            {
+                if (s.Values.Count == points.Count)
+                    Widgets.Text($"{s.Name}: {GilFormat.Exact(s.Values[plot.Hovered])} gil", Theme.TextSoft);
+            }
+
             if (!string.IsNullOrEmpty(point.TooltipDetail))
                 Widgets.Text(point.TooltipDetail, Theme.TextDim);
             EndTip();

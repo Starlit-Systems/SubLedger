@@ -152,6 +152,15 @@ public sealed record RangeReport
 
     /// <summary>Income not backed by recorded voyages: hand-kept totals and corrections.</summary>
     public long ManualGil { get; init; }
+
+    /// <summary>Running costs (fuel, repairs) dated in the range.</summary>
+    public long RunningCostsGil { get; init; }
+
+    /// <summary>One-off purchases (parts, house, plot) dated in the range.</summary>
+    public long InvestedGil { get; init; }
+
+    /// <summary>Income after running costs.</summary>
+    public long NetGil => TotalGil - RunningCostsGil;
     public IReadOnlyList<PeriodTotal> Periods { get; init; } = [];
     public IReadOnlyList<GroupStats> BySubmarine { get; init; } = [];
     public IReadOnlyList<GroupStats> ByRoute { get; init; } = [];
@@ -189,6 +198,7 @@ public static class LedgerReports
         var recordedInCovered = covered is { } c ? days.Count(d => c.Contains(d.Date)) : 0;
         var incomes = days.Select(d => d.IncomeGil).Order().ToList();
         var captured = days.Where(d => d.Voyages > 0).Sum(d => d.CapturedGil);
+        var (runningCosts, invested) = FinanceAnalytics.InRange(entries, range, fcId);
 
         return new RangeReport
         {
@@ -207,6 +217,8 @@ public static class LedgerReports
             BestDay = days.MaxBy(d => d.IncomeGil),
             WorstDay = days.MinBy(d => d.IncomeGil),
             ManualGil = total - captured,
+            RunningCostsGil = runningCosts,
+            InvestedGil = invested,
             Periods = Periods(allDays, range, covered, grouping),
             BySubmarine = LedgerAnalytics.BySubmarine(inRange, fcId),
             ByRoute = LedgerAnalytics.ByRoute(inRange, fcId),

@@ -10,6 +10,15 @@ internal static class Changelog
 {
     public static readonly IReadOnlyList<ChangelogEntry> Entries =
     [
+        new("0.3.0.0", new DateOnly(2026, 11, 26),
+        [
+            "New Expenses page: enter what you spent, as one-off investments (submarine parts, your Free Company house, the plot) or running costs (ceruleum tanks, repair materials), with quantity and price each, so \"3 x Shark-class Bow at 4m\" is one entry",
+            "Payback: SubLedger works out your profit, your return on investment and the day your submarines earned everything back, or, if they have not yet, when they will at the current pace",
+            "A chart of money earned against money invested, and a breakdown of where the money went",
+            "The dashboard shows a payback bar once any spending is entered",
+            "Reports show running costs, income after them, and investments for the chosen period, and exports include an expenses file",
+            "Each Free Company has its own payback; the combined view adds them together",
+        ]),
         new("0.2.1.0", new DateOnly(2026, 11, 26),
         [
             "Latest voyages on the dashboard is grouped by Free Company: each one gets its own heading and its own row of up to four submarines, wrapping onto more rows when the window is narrow",

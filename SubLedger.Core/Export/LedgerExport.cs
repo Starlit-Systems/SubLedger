@@ -102,13 +102,33 @@ public static class LedgerExport
         return sb.ToString();
     }
 
+    /// <summary>One row per expense or investment.</summary>
+    public static string CostsCsv(IEnumerable<LedgerEntry> entries, ExportContext context)
+    {
+        var sb = new StringBuilder();
+        Row(sb, "date", "type", "category", "description", "amount_gil", "free_company");
+        foreach (var e in entries.Where(e => !e.Deleted && ExpenseCategories.IsCost(e.Kind)).OrderBy(e => e.BusinessDate))
+        {
+            Row(sb,
+                Day(e.BusinessDate),
+                e.Kind == LedgerEntryKind.Investment ? "investment" : "running cost",
+                e.Category,
+                e.Note,
+                e.AmountGil.ToString(Inv),
+                context.FreeCompanyNames.GetValueOrDefault(e.FcId, string.Empty));
+        }
+
+        return sb.ToString();
+    }
+
     /// <summary>The whole report as one JSON document: summary, per-period totals, breakdowns and every voyage.</summary>
     public static string Json(
         RangeReport report,
         IEnumerable<Voyage> voyages,
         SortedDictionary<DateOnly, DayTotal> days,
         ExportContext context,
-        DateTimeOffset generatedAt)
+        DateTimeOffset generatedAt,
+        IEnumerable<LedgerEntry>? costs = null)
     {
         var document = new
         {
@@ -133,7 +153,19 @@ public static class LedgerExport
                 bestDay = report.BestDay is { } best ? new { day = Day(best.Date), incomeGil = best.IncomeGil } : null,
                 worstDay = report.WorstDay is { } worst ? new { day = Day(worst.Date), incomeGil = worst.IncomeGil } : null,
                 handKeptAndCorrectionsGil = report.ManualGil,
+                runningCostsGil = report.RunningCostsGil,
+                investedGil = report.InvestedGil,
+                netAfterRunningCostsGil = report.NetGil,
             },
+            costs = (costs ?? []).Where(e => !e.Deleted && ExpenseCategories.IsCost(e.Kind) && report.Range.Contains(e.BusinessDate)).OrderBy(e => e.BusinessDate).Select(e => new
+            {
+                date = Day(e.BusinessDate),
+                type = e.Kind == LedgerEntryKind.Investment ? "investment" : "running cost",
+                category = e.Category,
+                description = e.Note,
+                amountGil = e.AmountGil,
+                freeCompany = context.FreeCompanyNames.GetValueOrDefault(e.FcId, string.Empty),
+            }),
             periods = report.Periods.Select(p => new
             {
                 grouping = report.Grouping.ToString().ToLowerInvariant(),
