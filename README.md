@@ -12,12 +12,12 @@ It only observes. It never clicks, never sends anything to the game and never se
 2. Under **Custom Plugin Repositories**, paste this address, press the **+** button, then **Save and Close**:
 
    ```text
-   https://raw.githubusercontent.com/starlit-systems/HonorificCarousel/main/pluginmaster.json
+   https://raw.githubusercontent.com/starlit-systems/DalamudPlugins/main/pluginmaster.json
    ```
 
 3. Type `/xlplugins`, search for **SubLedger** and install it.
 
-That one address lists every Starlit Systems plugin. If you already added it for Honorific Carousel, skip to step 3.
+That one address lists every Starlit Systems plugin.
 
 ## What it does
 
@@ -57,7 +57,7 @@ The code is in three projects:
 
 1. Set the new version in `SubLedger/SubLedger.csproj` and add an entry to `SubLedger/Changelog.cs`.
 2. Commit and push to `main`, then push a tag of the same version, for example `v0.1.1.0`. The build workflow attaches `SubLedger.zip` to a GitHub release.
-3. Set the same `AssemblyVersion` for SubLedger in `pluginmaster.json` in the HonorificCarousel repository, which is the list players' installers read.
+3. Set the same `AssemblyVersion` for SubLedger in `pluginmaster.json` in the [DalamudPlugins](https://github.com/starlit-systems/DalamudPlugins) repository, which is the list players' installers read (and, while it is still in use, in the older list in the HonorificCarousel repository).
 
 ## Credits and licence
 
