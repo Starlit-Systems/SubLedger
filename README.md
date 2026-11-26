@@ -29,11 +29,12 @@ That one address lists every Starlit Systems plugin.
 - **Reports for any period.** Preset or custom date ranges, grouped by day, week, month or quarter, with income charts, a breakdown by item, submarine or route, export to CSV or JSON, and a full interactive HTML report that opens in your browser.
 - **Brings in your own records.** A hand-kept list such as `Day 1: 125k` or a two-column spreadsheet can be imported. Where a day has both a hand-kept total and recorded voyages, the voyages count and the total is kept on file, so nothing is doubled.
 - **Knows what it cost.** Enter what you spent on parts, housing, fuel and repairs, and SubLedger shows your profit, your return on investment and the day the fleet paid for itself.
+- **One ledger on every computer.** Point SubLedger at a folder that Google Drive, Dropbox or OneDrive keeps in step, and every computer's records are merged, without ever counting a voyage twice.
 - **Looks after its data.** A dated backup is made every day, and if the ledger file is ever damaged SubLedger restores the newest healthy backup on its own.
 
 ## Status
 
-This is an early version. Recording, the ledger, the SubmarineTracker import, the dashboard, date-range reports with charts, CSV and JSON export, importing hand-kept totals from text and spreadsheet files, and manual corrections are in. Expense and payback tracking and a standalone HTML report are in too. Still to come: merging ledgers kept on several computers.
+This is an early version. Recording, the ledger, the SubmarineTracker import, the dashboard, date-range reports with charts, CSV and JSON export, importing hand-kept totals from text and spreadsheet files, and manual corrections are in. Expense and payback tracking, a standalone HTML report, and syncing one ledger across several computers are in too.
 
 ## Building from source
 

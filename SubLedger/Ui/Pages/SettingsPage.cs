@@ -21,6 +21,7 @@ internal sealed class SettingsPage
         Data,
         Import,
         Manual,
+        Sync,
     }
 
     private readonly Plugin plugin;
@@ -45,7 +46,7 @@ internal sealed class SettingsPage
         var assets = plugin.Assets;
         Widgets.PageHeader("Settings", "Changes apply straight away.", assets);
 
-        var tabs = new[] { (Tab.General, "General"), (Tab.Capture, "Recording"), (Tab.Data, "Ledger & backups"), (Tab.Import, "SubmarineTracker"), (Tab.Manual, "Hand-kept records") };
+        var tabs = new[] { (Tab.General, "General"), (Tab.Capture, "Recording"), (Tab.Data, "Ledger & backups"), (Tab.Import, "SubmarineTracker"), (Tab.Manual, "Hand-kept records"), (Tab.Sync, "Sync") };
         for (var i = 0; i < tabs.Length; i++)
         {
             if (i > 0)
@@ -63,6 +64,7 @@ internal sealed class SettingsPage
             case Tab.Data: DrawData(assets); break;
             case Tab.Import: DrawImport(assets); break;
             case Tab.Manual: manualRecords.Draw(assets); break;
+            case Tab.Sync: DrawSync(assets); break;
         }
 
         Widgets.VSpace(10f);
@@ -329,12 +331,117 @@ internal sealed class SettingsPage
         Widgets.EndPanel();
     }
 
+    private string syncFolderEdit = string.Empty;
+    private string syncNameEdit = string.Empty;
+    private bool syncFieldsLoaded;
+
+    private void DrawSync(UiAssets assets)
+    {
+        var config = plugin.Config;
+        var sync = plugin.Sync;
+        if (!syncFieldsLoaded)
+        {
+            syncFolderEdit = config.SyncFolder;
+            syncNameEdit = config.SyncDeviceName;
+            syncFieldsLoaded = true;
+        }
+
+        Widgets.SectionLabel("Sync between computers", assets);
+        Widgets.BeginPanel();
+        Widgets.Text("Play on more than one computer? Keep one ledger across all of them.", Theme.Text);
+        Widgets.Text(
+            "Choose a folder that a sync service keeps the same on every computer, such as a folder inside Google Drive, Dropbox or OneDrive, "
+            + "and choose the same folder on each computer. Each one writes its own copy of the ledger there and merges in the others', "
+            + "so a voyage collected on the laptop appears on the desktop. A voyage is never counted twice, even if both computers imported the same history.",
+            Theme.TextDim);
+        Widgets.VSpace(2f);
+        Widgets.Text(
+            "Already copying the whole plugin settings folder between computers (Syncthing, for example)? Then the ledger is already shared and you do not need this.",
+            Theme.TextDim);
+        Widgets.PanelDivider();
+
+        ToggleRow("Sync this ledger", "Turn on once a folder is chosen below.", config.SyncEnabled, v =>
+        {
+            config.SyncEnabled = v;
+            if (v)
+                plugin.Sync.SyncNow();
+        });
+        Widgets.PanelDivider();
+
+        ImGui.AlignTextToFramePadding();
+        Widgets.Text("Shared folder", Theme.Text);
+        var buttonWidth = Theme.S(150f);
+        ImGui.SetNextItemWidth(MathF.Max(Theme.S(200f), Widgets.PanelRight - ImGui.GetCursorScreenPos().X - buttonWidth - Theme.S(10f)));
+        if (ImGui.InputTextWithHint("##syncFolder", @"e.g. C:\Users\you\Google Drive\SubLedger", ref syncFolderEdit, 400))
+        {
+            config.SyncFolder = syncFolderEdit.Trim();
+            Save();
+        }
+
+        ImGui.SameLine(0, Theme.S(10f));
+        if (Widgets.Button("Choose folder", FontAwesomeIcon.FolderOpen))
+        {
+            plugin.FileDialogs.OpenFolderDialog("Choose the shared folder", (ok, path) =>
+            {
+                if (!ok || string.IsNullOrWhiteSpace(path))
+                    return;
+                syncFolderEdit = path;
+                config.SyncFolder = path.Trim();
+                Save();
+            });
+        }
+
+        if (config.SyncFolder.Length > 0 && !Directory.Exists(config.SyncFolder))
+            Widgets.Text("That folder does not exist yet. Create it inside your sync service's folder, or choose another.", Theme.Amber);
+
+        Widgets.VSpace(2f);
+        ImGui.AlignTextToFramePadding();
+        Widgets.Text("This computer's name", Theme.Text);
+        ImGui.SameLine(0, Theme.S(10f));
+        ImGui.SetNextItemWidth(Theme.S(240f));
+        if (ImGui.InputTextWithHint("##syncName", Environment.MachineName, ref syncNameEdit, 40))
+        {
+            config.SyncDeviceName = syncNameEdit.Trim();
+            Save();
+        }
+
+        ImGui.SameLine(0, Theme.S(10f));
+        ImGui.AlignTextToFramePadding();
+        Widgets.Text("How the other computers list this one.", Theme.TextDim);
+
+        Widgets.PanelDivider();
+        var ready = config.SyncEnabled && config.SyncFolder.Length > 0;
+        if (Widgets.Button(sync.Running ? "Syncing..." : "Sync now", FontAwesomeIcon.SyncAlt, Widgets.ButtonKind.Primary, ready && !sync.Running))
+            sync.SyncNow();
+        ImGui.SameLine(0, Theme.S(12f));
+        ImGui.AlignTextToFramePadding();
+        if (!ready)
+            Widgets.Text("Choose a folder and turn sync on first.", Theme.TextDim);
+        else if (sync.Status.Length > 0)
+            Widgets.Text(sync.Status, sync.StatusIsProblem ? Theme.Rose : Theme.Mint);
+        else
+            Widgets.Text("Syncs by itself a few seconds after start-up, every five minutes, and shortly after anything is recorded.", Theme.TextDim);
+
+        if (sync.Peers.Count > 0)
+        {
+            Widgets.PanelDivider();
+            Widgets.Text("Other computers in this folder", Theme.TextSoft);
+            foreach (var peer in sync.Peers)
+                Widgets.Text($"{peer.DeviceName} · {peer.Voyages.ToString("N0", CultureInfo.InvariantCulture)} voyages · last wrote {peer.UpdatedLocal.ToString("d MMM yyyy, HH:mm", CultureInfo.InvariantCulture)}", Theme.TextDim);
+        }
+
+        Widgets.PanelDivider();
+        Widgets.Text("The folder holds a full copy of your ledger, including character and Free Company names. Only share it with your own computers.", Theme.TextDim);
+        Widgets.EndPanel();
+    }
+
     private static string DescribeReason(string reason) => reason switch
     {
         "daily" => "Automatic, daily",
         "manual" => "Made by hand",
         "before-restore" => "Before a restore",
         "before-import" => "Before an import",
+        "before-sync" => "Before a sync",
         "" => "Backup",
         _ => reason,
     };

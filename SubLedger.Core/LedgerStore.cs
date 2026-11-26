@@ -17,6 +17,12 @@ public sealed record LedgerSnapshot(
 
 public sealed record ImportResult(int Imported, int Duplicates, int Empty, long ImportedGil);
 
+/// <summary>What merging another computer's ledger changed here.</summary>
+public sealed record MergeResult(int VoyagesAdded, int EntriesAdded, int Removals, int Restorations, int CompaniesUpdated, int Skipped)
+{
+    public bool Changed => VoyagesAdded + EntriesAdded + Removals + Restorations + CompaniesUpdated > 0;
+}
+
 /// <summary>
 /// The ledger: prices incoming voyages, refuses duplicates, stores them, and keeps an in-memory copy for reading.
 /// Thread-safe. Knows nothing about the game or the UI.
@@ -505,6 +511,158 @@ public sealed class LedgerStore
             CreatedUnix = now,
             UpdatedUnix = now,
         };
+    }
+
+    /// <summary>
+    /// Brings in records from another computer's copy of the ledger. Nothing is ever counted twice:
+    /// <list type="bullet">
+    /// <item>A voyage already held (by id, or as the same submarine's same collection or return) is not added again.
+    /// That also covers both computers having imported the same SubmarineTracker history.</item>
+    /// <item>Removing or restoring a record travels with it: the newer change wins.</item>
+    /// <item>A hand-kept day total is only added when this ledger has none for that Free Company and day.</item>
+    /// </list>
+    /// Records keep the id, computer and timestamps they were created with, so merging again changes nothing.
+    /// </summary>
+    public MergeResult MergeFrom(LedgerData other)
+    {
+        lock (gate)
+        {
+            int voyagesAdded = 0, entriesAdded = 0, removals = 0, restorations = 0, companies = 0, skipped = 0;
+            var byId = voyages.ToDictionary(v => v.Id);
+            var newVoyages = new List<Voyage>();
+
+            void ApplyDeletion(Voyage local, Voyage incoming)
+            {
+                if (local.Deleted == incoming.Deleted || incoming.UpdatedUnix <= local.UpdatedUnix)
+                    return;
+
+                db.SetVoyageDeleted(local.Id, incoming.Deleted, incoming.UpdatedUnix);
+                local.Deleted = incoming.Deleted;
+                local.UpdatedUnix = incoming.UpdatedUnix;
+                if (incoming.Deleted)
+                    removals++;
+                else
+                    restorations++;
+            }
+
+            foreach (var incoming in other.Voyages.OrderBy(v => v.CollectedUnix))
+            {
+                if (byId.TryGetValue(incoming.Id, out var same))
+                {
+                    ApplyDeletion(same, incoming);
+                    continue;
+                }
+
+                var twin = voyagesBySub.TryGetValue((incoming.FcId, incoming.SubRegister), out var list)
+                    ? list.FirstOrDefault(v =>
+                        (incoming.ReturnUnix != 0 && v.ReturnUnix == incoming.ReturnUnix)
+                        || Math.Abs(v.CollectedUnix - incoming.CollectedUnix) <= SameCollectionSeconds)
+                    : null;
+                if (twin is not null)
+                {
+                    ApplyDeletion(twin, incoming);
+                    skipped++;
+                    continue;
+                }
+
+                AddToMemory(incoming);
+                byId[incoming.Id] = incoming;
+                newVoyages.Add(incoming);
+                if (!incoming.Deleted)
+                    voyagesAdded++;
+            }
+
+            try
+            {
+                db.InsertVoyages(newVoyages);
+            }
+            catch
+            {
+                foreach (var v in newVoyages)
+                    RemoveFromMemory(v);
+                throw;
+            }
+
+            var entriesById = entries.ToDictionary(e => e.Id);
+            var handKept = entries.Where(e => !e.Deleted && e.Kind == LedgerEntryKind.HistoricalDay)
+                .Select(e => (e.FcId, e.BusinessDate)).ToHashSet();
+            var newEntries = new List<LedgerEntry>();
+            foreach (var incoming in other.Entries)
+            {
+                if (entriesById.TryGetValue(incoming.Id, out var local))
+                {
+                    if (local.Deleted != incoming.Deleted && incoming.UpdatedUnix > local.UpdatedUnix)
+                    {
+                        db.SetEntryDeleted(local.Id, incoming.Deleted, incoming.UpdatedUnix);
+                        local.Deleted = incoming.Deleted;
+                        local.UpdatedUnix = incoming.UpdatedUnix;
+                        if (incoming.Deleted)
+                            removals++;
+                        else
+                            restorations++;
+                    }
+
+                    continue;
+                }
+
+                if (incoming.Kind == LedgerEntryKind.HistoricalDay && !incoming.Deleted && !handKept.Add((incoming.FcId, incoming.BusinessDate)))
+                {
+                    skipped++;
+                    continue;
+                }
+
+                newEntries.Add(incoming);
+                entriesById[incoming.Id] = incoming;
+                if (!incoming.Deleted)
+                    entriesAdded++;
+            }
+
+            db.InsertEntries(newEntries);
+            entries.AddRange(newEntries);
+
+            var changedCompanies = new List<FreeCompany>();
+            var now = Now();
+            foreach (var incoming in other.FreeCompanies)
+            {
+                if (incoming.FcId == 0)
+                    continue;
+
+                if (!freeCompanies.TryGetValue(incoming.FcId, out var known))
+                {
+                    known = new FreeCompany
+                    {
+                        FcId = incoming.FcId,
+                        Name = incoming.Name,
+                        Tag = incoming.Tag,
+                        World = incoming.World,
+                        FirstSeenUnix = incoming.FirstSeenUnix,
+                        LastSeenUnix = incoming.LastSeenUnix,
+                    };
+                    freeCompanies[known.FcId] = known;
+                    changedCompanies.Add(known);
+                    continue;
+                }
+
+                // The computer that saw the Free Company most recently knows its current name.
+                var newer = incoming.LastSeenUnix > known.LastSeenUnix;
+                var changed = false;
+                if (!string.IsNullOrWhiteSpace(incoming.Name) && (newer || string.IsNullOrWhiteSpace(known.Name)) && known.Name != incoming.Name) { known.Name = incoming.Name; changed = true; }
+                if (!string.IsNullOrWhiteSpace(incoming.Tag) && (newer || string.IsNullOrWhiteSpace(known.Tag)) && known.Tag != incoming.Tag) { known.Tag = incoming.Tag; changed = true; }
+                if (!string.IsNullOrWhiteSpace(incoming.World) && (newer || string.IsNullOrWhiteSpace(known.World)) && known.World != incoming.World) { known.World = incoming.World; changed = true; }
+                if (newer)
+                    known.LastSeenUnix = incoming.LastSeenUnix;
+                if (changed)
+                    changedCompanies.Add(known);
+            }
+
+            db.UpsertFreeCompanies(changedCompanies, deviceId, now);
+            companies = changedCompanies.Count;
+
+            var result = new MergeResult(voyagesAdded, entriesAdded, removals, restorations, companies, skipped);
+            if (result.Changed)
+                Touch();
+            return result;
+        }
     }
 
     /// <summary>Runs <paramref name="action"/> while nothing else can touch the ledger file (backups, restores).</summary>

@@ -36,6 +36,15 @@ public sealed class Configuration : IPluginConfiguration
     /// <summary>The user chose not to import SubmarineTracker history; stop offering it on the dashboard.</summary>
     public bool SubmarineTrackerOfferDismissed { get; set; }
 
+    /// <summary>Keep this ledger in step with other computers through a shared folder.</summary>
+    public bool SyncEnabled { get; set; }
+
+    /// <summary>The shared folder, kept in step between computers by a sync service.</summary>
+    public string SyncFolder { get; set; } = string.Empty;
+
+    /// <summary>How this computer is named to the others. Empty means the Windows computer name.</summary>
+    public string SyncDeviceName { get; set; } = string.Empty;
+
     /// <summary>Free Company shown in the window; 0 shows all of them combined.</summary>
     public ulong SelectedFreeCompany { get; set; }
 

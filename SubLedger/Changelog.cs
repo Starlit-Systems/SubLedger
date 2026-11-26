@@ -10,6 +10,13 @@ internal static class Changelog
 {
     public static readonly IReadOnlyList<ChangelogEntry> Entries =
     [
+        new("0.5.0.0", new DateOnly(2026, 11, 26),
+        [
+            "Sync between computers: under Settings, Sync, choose a folder that Google Drive, Dropbox, OneDrive or similar keeps the same on each computer, and every computer's voyages, spending and corrections end up in one ledger",
+            "Each computer writes only its own file in that folder, so the sync service never has two computers fighting over one file",
+            "Nothing is ever counted twice: the same voyage seen by two computers, or the same SubmarineTracker history imported on both, is recognised; removing or restoring a record carries across too",
+            "The ledger is backed up before the first merge of each session",
+        ]),
         new("0.4.0.0", new DateOnly(2026, 11, 26),
         [
             "Full HTML report: Reports, then Open HTML report, opens one page in your browser with every figure, chart and table, its own date presets, custom dates, grouping and Free Company filter, a donut of what the gil came from, sortable and searchable voyages with their loot, and the payback chart",

@@ -46,7 +46,8 @@ public sealed class Plugin : IDalamudPlugin
         ConfigDirectory = Service.PluginInterface.GetPluginConfigDirectory();
         var database = new LedgerDatabase(Path.Combine(ConfigDirectory, "subledger.db"));
         Sectors = new GameSectorCatalog();
-        Store = new LedgerStore(database, new GameItemCatalog(), Sectors, Log, DeviceId());
+        DeviceId = MakeDeviceId();
+        Store = new LedgerStore(database, new GameItemCatalog(), Sectors, Log, DeviceId);
         Backups = new BackupManager(database, Path.Combine(ConfigDirectory, "backups"), Log);
         Worker = new SerialWorker(Log);
 
@@ -63,6 +64,8 @@ public sealed class Plugin : IDalamudPlugin
             if (Config.SubmarineTrackerSync)
                 Worker.Enqueue("SubmarineTracker sync", () => ImportSubmarineTracker(automatic: true));
         }
+
+        Sync = new SyncCoordinator(this);
 
         Service.CommandManager.AddHandler(CommandName, new CommandInfo(OnCommand)
         {
@@ -90,6 +93,11 @@ public sealed class Plugin : IDalamudPlugin
     public string? LedgerError { get; private set; }
 
     /// <summary>What the last SubmarineTracker import did, for the Settings page.</summary>
+    /// <summary>A short id for this computer, stamped on every record it writes and naming its file in the sync folder.</summary>
+    public string DeviceId { get; }
+
+    internal SyncCoordinator Sync { get; }
+
     public string ImportStatus { get; private set; } = string.Empty;
     public bool ImportRunning { get; private set; }
 
@@ -136,9 +144,23 @@ public sealed class Plugin : IDalamudPlugin
     }
 
     /// <summary>A short, stable id for this computer, so records say where they were written.</summary>
-    private static string DeviceId()
+    private static string MakeDeviceId()
     {
-        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(Environment.MachineName.ToUpperInvariant()));
+        // Windows' own per-installation id where there is one (Wine has one per prefix too), so two computers that
+        // happen to share a name still get different ids. Settings are not used: they may be synced between computers.
+        var basis = Environment.MachineName.ToUpperInvariant();
+        try
+        {
+            using var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Cryptography");
+            if (key?.GetValue("MachineGuid") is string guid && guid.Length > 0)
+                basis = guid + "|" + basis;
+        }
+        catch
+        {
+            // Falls back to the computer name.
+        }
+
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(basis));
         return Convert.ToHexString(hash, 0, 6).ToLowerInvariant();
     }
 
@@ -430,8 +452,9 @@ public sealed class Plugin : IDalamudPlugin
         Service.CommandManager.RemoveHandler(CommandName);
 
         capture?.Dispose();
+        Sync.Dispose();
 
-        // Lets a voyage that is still being written finish before the plugin unloads.
+        // Lets a voyage that is still being written (and the last sync copy) finish before the plugin unloads.
         Worker.Dispose();
 
         windowSystem.RemoveAllWindows();
