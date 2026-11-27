@@ -87,6 +87,16 @@ button:focus-visible, select:focus-visible, input:focus-visible, .pill:focus-vis
 .pill.teal.on { color: var(--teal); border-color: color-mix(in srgb, var(--teal) 55%, transparent); background: color-mix(in srgb, var(--teal) 12%, var(--card)); }
 input[type="date"] { padding: 4px 8px; }
 .scope { color: var(--text-3); font-size: 13px; margin: 4px 0 14px; }
+details.fcpick { position: relative; }
+details.fcpick summary { list-style: none; cursor: pointer; border: 1px solid var(--line); border-radius: 8px; padding: 5px 30px 5px 11px; background: var(--card); min-width: 220px; position: relative; }
+details.fcpick summary::after { content: "▾"; position: absolute; right: 10px; color: var(--text-3); }
+details.fcpick summary::-webkit-details-marker { display: none; }
+details.fcpick .menu { position: absolute; z-index: 10; top: calc(100% + 6px); left: 0; min-width: 280px; background: var(--card-2); border: 1px solid var(--axis); border-radius: 10px; padding: 8px; box-shadow: 0 8px 28px rgba(0,0,0,0.35); }
+details.fcpick .menu .row { display: flex; align-items: center; gap: 8px; padding: 5px 6px; border-radius: 6px; }
+details.fcpick .menu .row:hover { background: color-mix(in srgb, var(--teal) 8%, transparent); }
+details.fcpick .menu .row label { flex: 1; color: var(--text); cursor: pointer; }
+details.fcpick .menu .only { color: var(--teal); font-size: 12.5px; cursor: pointer; background: none; border: none; padding: 0 4px; }
+details.fcpick .menu .hint { color: var(--text-3); font-size: 12px; padding: 6px 6px 2px; border-top: 1px solid var(--line); margin-top: 6px; }
 .tiles { display: grid; grid-template-columns: repeat(var(--cols, 4), minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }
 @media (max-width: 900px) { .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .tile {
@@ -171,7 +181,7 @@ footer { color: var(--text-3); font-size: 12.5px; margin-top: 26px; border-top: 
   </header>
 
   <div class="filters" id="filters">
-    <div class="group" id="fcGroup"><label for="fcSelect">Free Company</label><select id="fcSelect"></select></div>
+    <div class="group" id="fcGroup"><label>Free Companies</label><details class="fcpick" id="fcPick"><summary id="fcSummary">All Free Companies</summary><div class="menu" id="fcMenu"></div></details></div>
     <div class="group" id="presets"></div>
     <div class="group"><label for="from">From</label><input type="date" id="from"><label for="to">to</label><input type="date" id="to"></div>
     <div class="group" id="grouping"><label>Group by</label></div>
@@ -237,7 +247,7 @@ footer { color: var(--text-3); font-size: 12.5px; margin-top: 26px; border-top: 
 
   // ---------- state ----------
   const state = {
-    fc: DATA.initial.fc,
+    fcs: DATA.initial.fcs && DATA.initial.fcs.length ? new Set(DATA.initial.fcs) : null,
     from: toNum(DATA.initial.from),
     to: toNum(DATA.initial.to),
     preset: DATA.initial.preset || "custom",
@@ -251,7 +261,10 @@ footer { color: var(--text-3); font-size: 12.5px; margin-top: 26px; border-top: 
     open: -1,
   };
 
-  const inFc = (fc) => state.fc < 0 || fc === state.fc;
+  // Which Free Companies are in view: all (null) or any chosen set. Records tied to none only show with all.
+  const inFc = (fc) => state.fcs === null || state.fcs.has(fc);
+  const scopeIndexes = () => companies.map((_, i) => i).filter((i) => inFc(i));
+  const multi = () => scopeIndexes().length > 1;
 
   // ---------- calculations (the same rules as the plugin) ----------
   // Income per ledger day for the chosen Free Company. A hand-kept total gives way to recorded voyages from its own
@@ -267,7 +280,7 @@ footer { color: var(--text-3); font-size: 12.5px; margin-top: 26px; border-top: 
     }
     for (const e of entries) {
       if (e.kind !== "hand" && e.kind !== "adj") continue;
-      if (state.fc >= 0 && e.fc !== state.fc) continue;
+      if (!inFc(e.fc)) continue;
       const x = get(e.day);
       if (e.kind === "hand") {
         const aside = e.fc < 0 ? anyDays.has(e.day) : voyageDays.has(e.fc + ":" + e.day);
@@ -279,7 +292,7 @@ footer { color: var(--text-3); font-size: 12.5px; margin-top: 26px; border-top: 
   }
 
   function costsFor() {
-    return entries.filter((e) => (e.kind === "inv" || e.kind === "run") && (state.fc < 0 || e.fc === state.fc));
+    return entries.filter((e) => (e.kind === "inv" || e.kind === "run") && inFc(e.fc));
   }
 
   function median(sorted) {
@@ -376,7 +389,8 @@ footer { color: var(--text-3); font-size: 12.5px; margin-top: 26px; border-top: 
       perVoyage: rangeVoyages.length ? Math.trunc(rangeVoyages.reduce((s, v) => s + v.gil, 0) / rangeVoyages.length) : 0,
       best, worst, runIn, invIn, manual: total - captured,
       periods: periods(days, from, to, state.group, coveredOk ? covered : null),
-      bySub: groupStats(rangeVoyages, (v) => v.sub, (v) => subs[v.sub].name + (state.fc < 0 && companies.length > 1 ? " · " + companies[v.fc].name : "")),
+      bySub: groupStats(rangeVoyages, (v) => v.sub, (v) => subs[v.sub].name + (multi() ? " · " + companies[v.fc].name : "")),
+      byFc: groupStats(rangeVoyages, (v) => v.fc, (v) => companies[v.fc].name),
       byRoute: groupStats(rangeVoyages, (v) => v.route || "?", (v) => v.route || "?"),
       byItem,
       finance: finance(days, costs),
@@ -617,16 +631,28 @@ footer { color: var(--text-3); font-size: 12.5px; margin-top: 26px; border-top: 
     let first = null;
     for (const v of voyages) if (inFc(v.fc) && (first === null || v.day < first)) first = v.day;
     // Spending counts too, so "Lifetime" includes parts and housing bought before the first voyage.
-    for (const e of entries) if ((state.fc < 0 || e.fc === state.fc) && (first === null || e.day < first)) first = e.day;
+    for (const e of entries) if (inFc(e.fc) && (first === null || e.day < first)) first = e.day;
     return first;
   }
 
   function buildFilters() {
-    const sel = document.getElementById("fcSelect");
     if (companies.length < 2) document.getElementById("fcGroup").classList.add("hidden");
-    sel.innerHTML = '<option value="-1">All Free Companies</option>' + companies.map((c, i) => `<option value="${i}">${esc(c.name)}</option>`).join("");
-    sel.value = String(state.fc);
-    sel.addEventListener("change", () => { state.fc = Number(sel.value); if (state.preset !== "custom") applyPreset(state.preset); render(); });
+    const menu = document.getElementById("fcMenu");
+    menu.innerHTML = `<div class="row"><label><input type="radio" name="fcall" id="fcAll"> All Free Companies</label></div>` +
+      companies.map((c, i) => `<div class="row"><label><input type="checkbox" data-fc="${i}"> ${esc(c.name)}</label><button type="button" class="only" data-only="${i}">only</button></div>`).join("") +
+      `<div class="hint">Every chart and table follows this choice.</div>`;
+    const changed = () => { if (state.preset !== "custom") applyPreset(state.preset); render(); };
+    document.getElementById("fcAll").addEventListener("change", () => { state.fcs = null; changed(); });
+    menu.querySelectorAll("input[data-fc]").forEach((box) => box.addEventListener("change", () => {
+      const i = Number(box.dataset.fc);
+      // Ticking with everything showing narrows to that one; unticking the last one goes back to all.
+      const set = state.fcs === null ? new Set() : new Set(state.fcs);
+      if (box.checked) set.add(i); else set.delete(i);
+      state.fcs = set.size === 0 || set.size === companies.length ? null : set;
+      changed();
+    }));
+    menu.querySelectorAll("button[data-only]").forEach((b) => b.addEventListener("click", () => { state.fcs = new Set([Number(b.dataset.only)]); changed(); }));
+    document.addEventListener("click", (ev) => { const pick = document.getElementById("fcPick"); if (pick.open && !pick.contains(ev.target)) pick.open = false; });
 
     const pres = document.getElementById("presets");
     pres.innerHTML = PRESETS.map(([k, l]) => `<span class="pill" tabindex="0" role="button" data-p="${k}">${l}</span>`).join("");
@@ -663,6 +689,10 @@ footer { color: var(--text-3); font-size: 12.5px; margin-top: 26px; border-top: 
   }
 
   function syncFilters() {
+    const shown = scopeIndexes();
+    document.getElementById("fcSummary").textContent = state.fcs === null ? "All Free Companies" : shown.length === 1 ? companies[shown[0]].name : `${shown.length} of ${companies.length} Free Companies`;
+    const all = document.getElementById("fcAll"); if (all) all.checked = state.fcs === null;
+    document.querySelectorAll("#fcMenu input[data-fc]").forEach((box) => { box.checked = state.fcs !== null && state.fcs.has(Number(box.dataset.fc)); });
     document.querySelectorAll("#presets .pill").forEach((p) => p.classList.toggle("on", p.dataset.p === state.preset));
     document.querySelectorAll("#grouping .pill").forEach((p) => p.classList.toggle("on", p.dataset.g === state.group));
     document.getElementById("from").value = toStr(state.from);
@@ -677,7 +707,8 @@ footer { color: var(--text-3); font-size: 12.5px; margin-top: 26px; border-top: 
     hideTip();
     syncFilters();
     const R = compute();
-    const fcName = state.fc >= 0 ? companies[state.fc].name : companies.length > 1 ? "All Free Companies combined" : companies.length ? companies[0].name : "Your submarines";
+    const inView = scopeIndexes();
+    const fcName = !companies.length ? "Your submarines" : inView.length === 1 ? companies[inView[0]].name : state.fcs === null ? "All Free Companies combined" : `${inView.length} Free Companies combined: ${inView.map((i) => companies[i].name).join(", ")}`;
     const nDays = state.to - state.from + 1;
     document.getElementById("scope").textContent = `${fcName} · ${fmtDay(state.from)} to ${fmtDay(state.to)} · ${plural(nDays, "day")}`;
 
@@ -703,9 +734,11 @@ footer { color: var(--text-3); font-size: 12.5px; margin-top: 26px; border-top: 
     const tileCount = (tiles.match(/class="tile"/g) || []).length;
 
     const unit = state.group;
+    const bd = state.breakdown === "fcs" && !multi() ? "routes" : state.breakdown === "items" ? "routes" : state.breakdown;
+    const bdName = bd === "subs" ? "submarine" : bd === "fcs" ? "Free Company" : "route";
     const chartTitle = state.chart === "period" ? "Income per " + unit : "Running total";
     const groupWord = (unit === "day" ? "Day" : unit[0].toUpperCase() + unit.slice(1));
-    const showSubFc = state.fc < 0 && companies.length > 1;
+    const showSubFc = multi();
 
     content.innerHTML = `
       <div class="tiles" style="--cols:${tileCount % 4 === 0 ? 4 : tileCount % 3 === 0 ? 3 : tileCount % 5 === 0 ? 5 : 4}">${tiles}</div>
@@ -717,12 +750,13 @@ footer { color: var(--text-3); font-size: 12.5px; margin-top: 26px; border-top: 
       </div>
       <div class="row2">
         <div class="card"><h2>What the gil came from</h2><p class="note">Items brought back in this period, by vendor value.</p><div class="donut-wrap"><div id="donut"></div><div class="donut-legend" id="donutLegend"></div></div></div>
-        <div class="card"><div class="card-head"><h2>By ${state.breakdown === "subs" ? "submarine" : "route"}</h2>
-          <div class="tools"><span class="pill ${state.breakdown !== "subs" ? "on" : ""}" data-bd="routes" tabindex="0" role="button">Routes</span><span class="pill ${state.breakdown === "subs" ? "on" : ""}" data-bd="subs" tabindex="0" role="button">Submarines</span></div></div>
+        <div class="card"><div class="card-head"><h2>By ${bdName}</h2>
+          <div class="tools">${multi() ? `<span class="pill ${bd === "fcs" ? "on" : ""}" data-bd="fcs" tabindex="0" role="button">Free Companies</span>` : ""}<span class="pill ${bd === "routes" ? "on" : ""}" data-bd="routes" tabindex="0" role="button">Routes</span><span class="pill ${bd === "subs" ? "on" : ""}" data-bd="subs" tabindex="0" role="button">Submarines</span></div></div>
           <div class="ranked" id="ranked"></div>
-          <table style="margin-top:10px"><thead><tr><th>${state.breakdown === "subs" ? "Submarine" : "Route"}</th><th class="num">Voyages</th><th class="num">Per voyage</th><th class="num" title="Gil per 24 hours of real time, from one collection to the next">Per 24h</th></tr></thead><tbody id="groupRows"></tbody></table>
+          <table style="margin-top:10px"><thead><tr><th>${bdName[0].toUpperCase() + bdName.slice(1)}</th><th class="num">Voyages</th><th class="num">Per voyage</th><th class="num" title="Gil per 24 hours of real time, from one collection to the next">Per 24h</th></tr></thead><tbody id="groupRows"></tbody></table>
         </div>
       </div>
+      ${multi() ? compareHtml() : ""}
       <div class="card"><h2>By ${unit}</h2><p class="note">The chart's figures, newest first.</p>
         <div class="scroll"><table><thead><tr><th>${groupWord}</th><th class="num">Income (gil)</th><th class="num">Voyages</th><th class="num">Days recorded</th></tr></thead><tbody id="periodRows"></tbody></table></div></div>
       <div class="card"><div class="card-head"><h2>Voyages</h2><div class="tools"><input type="search" id="search" placeholder="Search submarine, route or item" value="${esc(state.search)}" aria-label="Search voyages"></div></div>
@@ -775,7 +809,7 @@ footer { color: var(--text-3); font-size: 12.5px; margin-top: 26px; border-top: 
     }
 
     // Ranked bars.
-    const groups = state.breakdown === "subs" ? R.bySub : R.byRoute;
+    const groups = bd === "subs" ? R.bySub : bd === "fcs" ? R.byFc : R.byRoute;
     const shown = groups.slice(0, 8);
     const maxG = Math.max(1, ...shown.map((g) => g.total));
     const totalG = Math.max(1, groups.reduce((s, g) => s + g.total, 0));
@@ -844,6 +878,28 @@ footer { color: var(--text-3); font-size: 12.5px; margin-top: 26px; border-top: 
     if (next) next.addEventListener("click", () => { state.page++; state.open = -1; renderVoyages(R, showSubFc); });
   }
 
+  // Each Free Company in view, worked out on its own with exactly the same rules, side by side.
+  function perCompany() {
+    const saved = state.fcs;
+    const rows = scopeIndexes().map((i) => {
+      state.fcs = new Set([i]);
+      const r = compute();
+      const rate = r.byFc.find((g) => g.key === i);
+      return { name: companies[i].name, total: r.total, net: r.total - r.runIn, avgDay: r.avgDay, voyages: r.voyages, perVoyage: r.perVoyage, per24: rate ? rate.per24 : 0, recorded: r.recorded, covered: r.coveredDays, F: r.finance };
+    });
+    state.fcs = saved;
+    return rows.sort((a, b) => b.total - a.total);
+  }
+
+  function compareHtml() {
+    const rows = perCompany();
+    const costs = rows.some((r) => r.net !== r.total);
+    return `<div class="card"><h2>Free Companies side by side</h2><p class="note">This period, each Free Company on its own.</p>
+      <div class="scroll"><table><thead><tr><th>Free Company</th><th class="num">Income</th>${costs ? '<th class="num">After costs</th>' : ""}<th class="num">Per day</th><th class="num">Voyages</th><th class="num">Per voyage</th><th class="num">Per 24h</th><th class="num">Days recorded</th></tr></thead><tbody>
+      ${rows.map((r) => `<tr><td>${esc(r.name)}</td><td class="num gold">${exact(r.total)}</td>${costs ? `<td class="num">${exact(r.net)}</td>` : ""}<td class="num">${exact(r.avgDay)}</td><td class="num">${exact(r.voyages)}</td><td class="num">${exact(r.perVoyage)}</td><td class="num teal">${r.per24 ? exact(r.per24) : "-"}</td><td class="num">${r.recorded} of ${r.covered}</td></tr>`).join("")}
+      </tbody></table></div></div>`;
+  }
+
   function financeHtml(R) {
     const F = R.finance;
     if (!F.invested && !F.running) return "";
@@ -854,7 +910,7 @@ footer { color: var(--text-3); font-size: 12.5px; margin-top: 26px; border-top: 
     const scale = Math.max(1, F.share || 0);
     const meter = F.share === null ? "" : `<div class="meter" style="--accent:var(${accent})"><i style="width:${(Math.min(F.share, scale) / scale * 100).toFixed(2)}%"></i>${F.share > 1 ? `<u style="left:${(100 / scale).toFixed(2)}%"></u>` : ""}</div><div class="note">${F.share > 1 ? "The white mark is where the investment was covered." : "The full bar is the amount invested."}</div>`;
     const rows = F.costs.slice().sort((a, b) => b.day - a.day).map((e) =>
-      `<tr><td>${fmtDay(e.day)}</td><td>${e.kind === "inv" ? "Investment" : "Running cost"}</td><td>${esc(e.category)}</td><td class="dim">${esc(e.note)}</td>${state.fc < 0 && companies.length > 1 ? `<td>${e.fc >= 0 ? esc(companies[e.fc].name) : ""}</td>` : ""}<td class="num">${exact(e.gil)}</td></tr>`).join("");
+      `<tr><td>${fmtDay(e.day)}</td><td>${e.kind === "inv" ? "Investment" : "Running cost"}</td><td>${esc(e.category)}</td><td class="dim">${esc(e.note)}</td>${multi() ? `<td>${e.fc >= 0 ? esc(companies[e.fc].name) : ""}</td>` : ""}<td class="num">${exact(e.gil)}</td></tr>`).join("");
     return `
       <div class="card" style="--accent:var(${accent})"><div class="headline" style="color:var(${accent})">${esc(headline)}</div><p class="note" style="margin-bottom:0">${esc(detail)}</p>${meter}
         <div class="tiles" style="margin:12px 0 4px">
@@ -863,11 +919,19 @@ footer { color: var(--text-3); font-size: 12.5px; margin-top: 26px; border-top: 
           ${tile("Profit", (F.profit > 0 ? "+" : "") + short(F.profit), F.profit >= 0 ? "After paying for everything" : "Still to earn back", F.profit >= 0 ? "--mint" : "--amber", exact(F.profit) + " gil")}
           ${tile("Return", F.share === null ? "-" : pct(F.share), short(F.perDay) + " a day lately", "--teal", "Earnings after running costs as a share of what was invested")}
         </div>
+        ${multi() ? paybackTable() : ""}
         <h2 style="margin-top:10px">Earned against invested</h2><p class="note">Where the gold line climbs above the teal one, the fleet has paid for itself. These lines cover the ledger's whole life, not just the period above.</p>
         <div class="legend"><span><span class="line" style="background:var(--gold-mark)"></span>Earned after running costs</span><span><span class="line" style="background:var(--teal-mark)"></span>Invested</span></div>
         <div class="chart" id="financeChart"></div>
       </div>
-      <div class="card"><h2>Spending</h2><p class="note">Everything entered on the Expenses page.</p><div class="scroll"><table><thead><tr><th>Date</th><th>Type</th><th>Category</th><th>Description</th>${state.fc < 0 && companies.length > 1 ? "<th>Free Company</th>" : ""}<th class="num">Amount (gil)</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+      <div class="card"><h2>Spending</h2><p class="note">Everything entered on the Expenses page.</p><div class="scroll"><table><thead><tr><th>Date</th><th>Type</th><th>Category</th><th>Description</th>${multi() ? "<th>Free Company</th>" : ""}<th class="num">Amount (gil)</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+  }
+
+  function paybackTable() {
+    const rows = perCompany().sort((a, b) => b.F.profit - a.F.profit);
+    return `<h2 style="margin-top:10px">Each Free Company</h2><table style="margin:6px 0 12px"><thead><tr><th>Free Company</th><th class="num">Invested</th><th class="num">Earned</th><th class="num">Profit</th><th class="num">Return</th><th class="num">Paid back</th></tr></thead><tbody>
+      ${rows.map(({ name, F }) => `<tr><td>${esc(name)}</td><td class="num">${F.invested ? exact(F.invested) : "-"}</td><td class="num gold">${exact(F.net)}</td><td class="num">${(F.profit > 0 ? "+" : "") + exact(F.profit)}</td><td class="num teal">${F.share === null ? "-" : pct(F.share)}</td><td class="num">${F.paidOn !== null ? fmtDay(F.paidOn) : F.projected !== null ? "around " + fmtDay(F.projected) : F.invested ? "not yet" : "no investment"}</td></tr>`).join("")}
+      </tbody></table>`;
   }
 
   function drawFinance(R) {

@@ -176,11 +176,11 @@ public static class LedgerReports
         DateRange range,
         PeriodGrouping grouping,
         DateOnly today,
-        ulong fcId = 0)
+        FcFilter fcs = default)
     {
-        var allDays = LedgerAnalytics.Daily(voyages, entries, calendar, fcId);
+        var allDays = LedgerAnalytics.Daily(voyages, entries, calendar, fcs);
         var days = allDays.Values.Where(d => range.Contains(d.Date)).ToList();
-        var inRange = voyages.Where(v => !v.Deleted && (fcId == 0 || v.FcId == fcId) && range.Contains(calendar.DateOf(v.CollectedUnix))).ToList();
+        var inRange = voyages.Where(v => !v.Deleted && fcs.Includes(v.FcId) && range.Contains(calendar.DateOf(v.CollectedUnix))).ToList();
 
         // Days before the ledger existed, or after today, are neither recorded nor missing: they are outside what
         // the ledger can know, and are left out of averages.
@@ -198,7 +198,7 @@ public static class LedgerReports
         var recordedInCovered = covered is { } c ? days.Count(d => c.Contains(d.Date)) : 0;
         var incomes = days.Select(d => d.IncomeGil).Order().ToList();
         var captured = days.Where(d => d.Voyages > 0).Sum(d => d.CapturedGil);
-        var (runningCosts, invested) = FinanceAnalytics.InRange(entries, range, fcId);
+        var (runningCosts, invested) = FinanceAnalytics.InRange(entries, range, fcs);
 
         return new RangeReport
         {
@@ -220,8 +220,8 @@ public static class LedgerReports
             RunningCostsGil = runningCosts,
             InvestedGil = invested,
             Periods = Periods(allDays, range, covered, grouping),
-            BySubmarine = LedgerAnalytics.BySubmarine(inRange, fcId),
-            ByRoute = LedgerAnalytics.ByRoute(inRange, fcId),
+            BySubmarine = LedgerAnalytics.BySubmarine(inRange, fcs),
+            ByRoute = LedgerAnalytics.ByRoute(inRange, fcs),
             ByItem = ByItem(inRange),
         };
     }

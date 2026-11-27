@@ -20,7 +20,12 @@ internal sealed class ExpensesPage
 
     private readonly Plugin plugin;
 
-    private (long Version, ulong Fc, string Zone, int Cutoff, DateOnly Today) cacheKey;
+    private (long Version, FcFilter Fc, string Zone, int Cutoff, DateOnly Today) cacheKey;
+
+    /// <summary>One Free Company's payback, for comparing several.</summary>
+    private sealed record CompanyPayback(string Name, FinanceSummary Finance);
+
+    private List<CompanyPayback> companies = [];
     private FinanceSummary finance = new();
     private List<LedgerEntry> costs = [];
     private long tanksTotal;
@@ -48,7 +53,7 @@ internal sealed class ExpensesPage
         var calendar = plugin.Calendar;
         var today = calendar.Today(DateTimeOffset.Now);
         var snapshot = plugin.Store.Snapshot();
-        var fc = plugin.Config.SelectedFreeCompany;
+        var fc = plugin.Scope;
         var key = (snapshot.Version, fc, calendar.Zone.Id, calendar.CutoffMinutes, today);
         if (key == cacheKey)
             return;
@@ -56,20 +61,33 @@ internal sealed class ExpensesPage
         cacheKey = key;
         var days = LedgerAnalytics.Daily(snapshot.Voyages, snapshot.Entries, calendar, fc);
         finance = FinanceAnalytics.Summarize(days, snapshot.Entries, today, fc);
-        var shown = snapshot.Voyages.Where(v => fc == 0 || v.FcId == fc).ToList();
+        var shown = snapshot.Voyages.Where(v => fc.Includes(v.FcId)).ToList();
         tanksTotal = Fuel.Tanks(shown, plugin.Sectors);
         tanks30 = Fuel.Tanks(shown.Where(v => calendar.DateOf(v.CollectedUnix) >= today.AddDays(-29)), plugin.Sectors);
         firstVoyageDay = shown.Count > 0 ? calendar.DateOf(shown.Min(v => v.CollectedUnix)) : null;
         costs = [.. snapshot.Entries
-            .Where(e => ExpenseCategories.IsCost(e.Kind) && (fc == 0 || e.FcId == fc))
+            .Where(e => ExpenseCategories.IsCost(e.Kind) && fc.Includes(e.FcId))
             .OrderByDescending(e => e.BusinessDate).ThenByDescending(e => e.CreatedUnix)];
+
+        companies = [];
+        var inView = snapshot.FreeCompanies.Where(c => fc.Includes(c.FcId)).ToList();
+        if (inView.Count > 1)
+        {
+            foreach (var company in inView)
+            {
+                var companyDays = LedgerAnalytics.Daily(snapshot.Voyages, snapshot.Entries, calendar, company.FcId);
+                companies.Add(new CompanyPayback(company.DisplayName, FinanceAnalytics.Summarize(companyDays, snapshot.Entries, today, company.FcId)));
+            }
+
+            companies.Sort((a, b) => b.Finance.ProfitGil.CompareTo(a.Finance.ProfitGil));
+        }
     }
 
     public void Draw()
     {
         Refresh();
         var assets = plugin.Assets;
-        Widgets.PageHeader("Expenses & payback", "What the fleet cost to build and run, and when it paid for itself.", assets);
+        Widgets.PageHeader("Expenses & payback", $"{plugin.ScopeLabel()} · what the fleet cost to build and run, and when it paid for itself.", assets);
 
         if (finance.HasSpending)
         {
@@ -77,6 +95,12 @@ internal sealed class ExpensesPage
             Widgets.VSpace(6f);
             DrawTiles(assets);
             Widgets.VSpace(6f);
+            if (companies.Count(c => c.Finance.HasSpending) > 1 || (companies.Count > 1 && finance.HasSpending))
+            {
+                DrawCompanies(assets);
+                Widgets.VSpace(6f);
+            }
+
             if (finance.Timeline.Count >= 2)
             {
                 DrawChart(assets);
@@ -89,7 +113,7 @@ internal sealed class ExpensesPage
             Widgets.Text("Add what you spent to see when your fleet paid for itself", Theme.Text, assets.Heading);
             Widgets.Text(
                 "Enter one-off purchases, such as submarine parts, your Free Company house and the plot, as investments, and ongoing "
-                + "costs such as ceruleum tanks and repair materials as running costs. SubLedger then works out your profit, your "
+                + "costs such as repair materials as running costs. SubLedger then works out your profit, your "
                 + "return on investment, and the day your submarines earned it all back. Rough figures are fine; you can change them later.",
                 Theme.TextSoft);
             Widgets.EndPanel();
@@ -149,6 +173,62 @@ internal sealed class ExpensesPage
         }
 
         Widgets.EndPanel(accent: accent);
+    }
+
+    /// <summary>Each Free Company in view: what it cost, what it earned, and whether it has paid for itself.</summary>
+    private void DrawCompanies(UiAssets assets)
+    {
+        var rowHeight = ImGui.GetTextLineHeight() + Theme.S(12f);
+        Widgets.BeginCard("##companyPayback", new Vector2(0, Theme.S(66f) + rowHeight * (companies.Count + 1)));
+        Widgets.Text("Each Free Company", Theme.Text, assets.Heading);
+        Widgets.VSpace(2f);
+
+        ImGui.PushStyleVar(ImGuiStyleVar.CellPadding, Theme.S(6f, 6f));
+        if (ImGui.BeginTable("##companyPaybackTable", 6, ImGuiTableFlags.SizingStretchProp | ImGuiTableFlags.BordersInnerH | ImGuiTableFlags.NoSavedSettings))
+        {
+            ImGui.TableSetupColumn("Free Company", ImGuiTableColumnFlags.WidthStretch, 2.4f);
+            for (var i = 1; i < 6; i++)
+                ImGui.TableSetupColumn($"c{i}", ImGuiTableColumnFlags.WidthStretch, i == 5 ? 1.6f : 1.1f);
+
+            ImGui.TableNextRow();
+            ImGui.TableNextColumn();
+            Widgets.Text("FREE COMPANY", Theme.TextDim, assets.Small);
+            foreach (var header in new[] { "INVESTED", "EARNED", "PROFIT", "RETURN", "PAID BACK" })
+            {
+                ImGui.TableNextColumn();
+                using (assets.Small.Push())
+                    Widgets.TextRight(header, Theme.TextDim);
+            }
+
+            foreach (var c in companies)
+            {
+                var f = c.Finance;
+                ImGui.TableNextRow();
+                ImGui.TableNextColumn();
+                Widgets.Text(c.Name, Theme.Text);
+                ImGui.TableNextColumn();
+                Widgets.TextRight(f.InvestedGil == 0 ? "-" : GilFormat.Short(f.InvestedGil), Theme.TextSoft);
+                ImGui.TableNextColumn();
+                Widgets.TextRight(GilFormat.Short(f.NetIncomeGil), Theme.Gold);
+                Widgets.Tooltip($"{GilFormat.Exact(f.IncomeGil)} gil earned, {GilFormat.Exact(f.RunningCostsGil)} gil running costs");
+                ImGui.TableNextColumn();
+                Widgets.TextRight((f.ProfitGil > 0 ? "+" : string.Empty) + GilFormat.Short(f.ProfitGil), f.ProfitGil >= 0 ? Theme.Mint : Theme.Amber);
+                ImGui.TableNextColumn();
+                Widgets.TextRight(f.RecoveredShare is { } share ? Percent(share) : "-", Theme.Teal);
+                ImGui.TableNextColumn();
+                var paid = f.PaidBackOn is { } on ? on.ToString("d MMM yyyy", Inv)
+                    : f.ProjectedPaybackOn is { } projected ? $"~{projected.ToString("d MMM yyyy", Inv)}"
+                    : f.InvestedGil == 0 ? "no investment" : "not yet";
+                Widgets.TextRight(paid, f.PaidBackOn is null ? Theme.TextDim : Theme.TextSoft);
+                if (f.PaidBackOn is null && f.ProjectedPaybackOn is not null)
+                    Widgets.Tooltip("Not paid back yet; this is when it will be at the last 30 days' pace.");
+            }
+
+            ImGui.EndTable();
+        }
+
+        ImGui.PopStyleVar();
+        Widgets.EndCard();
     }
 
     /// <summary>
@@ -448,7 +528,7 @@ internal sealed class ExpensesPage
         Widgets.SectionLabel("Everything entered", assets);
         Widgets.BeginPanel();
         var companies = plugin.Store.Snapshot().FreeCompanies;
-        var showCompany = companies.Count > 1 && plugin.Config.SelectedFreeCompany == 0;
+        var showCompany = companies.Count > 1 && plugin.Scope.Single == 0;
 
         for (var i = 0; i < costs.Count; i++)
         {

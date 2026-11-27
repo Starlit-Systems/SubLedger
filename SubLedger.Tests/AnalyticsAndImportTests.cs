@@ -182,8 +182,8 @@ public class AnalyticsTests
         var day = new DateOnly(2026, 5, 5);
 
         Assert.Equal(140_000, LedgerAnalytics.Daily(voyages, [], Utc)[day].IncomeGil);
-        Assert.Equal(100_000, LedgerAnalytics.Daily(voyages, [], Utc, fcId: 1)[day].IncomeGil);
-        Assert.Equal(40_000, LedgerAnalytics.Daily(voyages, [], Utc, fcId: 2)[day].IncomeGil);
+        Assert.Equal(100_000, LedgerAnalytics.Daily(voyages, [], Utc, fcs: 1)[day].IncomeGil);
+        Assert.Equal(40_000, LedgerAnalytics.Daily(voyages, [], Utc, fcs: 2)[day].IncomeGil);
     }
 
     [Fact]

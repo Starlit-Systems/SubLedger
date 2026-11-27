@@ -7,7 +7,7 @@ using SubLedger.Core.Model;
 namespace SubLedger.Core.Report;
 
 /// <summary>How the report opens: the period, grouping and Free Company chosen in the plugin. The page can change all three.</summary>
-public sealed record ReportStart(DateRange Range, RangePreset Preset, PeriodGrouping Grouping, ulong FcId);
+public sealed record ReportStart(DateRange Range, RangePreset Preset, PeriodGrouping Grouping, FcFilter FreeCompanies);
 
 /// <summary>
 /// Writes the ledger into one self-contained HTML page: data, styles, charts and logic all inline, nothing fetched
@@ -125,7 +125,7 @@ public static class HtmlReport
                 to = start.Range.To.ToString("yyyy-MM-dd", Inv),
                 preset = PresetKey(start.Preset),
                 group = start.Grouping.ToString().ToLowerInvariant(),
-                fc = start.FcId == 0 ? -1 : CompanyIndex(start.FcId),
+                fcs = start.FreeCompanies.Ids.Select(CompanyIndex).Where(i => i >= 0).ToArray(),
             },
             companies = companies.Select(c => new { id = c.Id.ToString("X16", Inv), name = c.Name }),
             subs = subs.Select(s => new { fc = s.Fc, name = s.Name }),

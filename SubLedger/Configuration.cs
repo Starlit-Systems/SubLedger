@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Dalamud.Configuration;
 
 namespace SubLedger;
@@ -45,8 +46,11 @@ public sealed class Configuration : IPluginConfiguration
     /// <summary>How this computer is named to the others. Empty means the Windows computer name.</summary>
     public string SyncDeviceName { get; set; } = string.Empty;
 
-    /// <summary>Free Company shown in the window; 0 shows all of them combined.</summary>
+    /// <summary>Replaced by <see cref="SelectedFreeCompanies"/>; read once to carry an older choice over.</summary>
     public ulong SelectedFreeCompany { get; set; }
+
+    /// <summary>The Free Companies every page shows; empty shows all of them combined.</summary>
+    public List<ulong> SelectedFreeCompanies { get; set; } = [];
 
     /// <summary>The newest version whose notes the user has opened the Updates page for.</summary>
     public string LastSeenChangelog { get; set; } = string.Empty;

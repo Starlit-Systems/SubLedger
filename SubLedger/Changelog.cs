@@ -10,6 +10,14 @@ internal static class Changelog
 {
     public static readonly IReadOnlyList<ChangelogEntry> Entries =
     [
+        new("0.6.0.0", new DateOnly(2026, 11, 26),
+        [
+            "With more than one Free Company, the picker at the top of the window now takes any mix: all of them, one, or any combination. Every page, export and the HTML report follow it",
+            "Free Companies side by side: the dashboard gains a By Free Company table, Reports a Free Companies breakdown and comparison table, and Expenses a payback table per Free Company",
+            "The Voyages list says which Free Company each voyage belongs to when several are shown",
+            "Hand-kept lists and corrections let you choose which Free Company they belong to",
+            "The HTML report has the same pick-any-mix Free Company filter and the same side-by-side comparisons",
+        ]),
         new("0.5.1.0", new DateOnly(2026, 11, 26),
         [
             "Fuel is tracked in ceruleum tanks and company credits: every voyage's tanks are worked out from the sectors it visited (9 for OJ), shown on the Expenses page, the Reports page and the HTML report",

@@ -104,7 +104,7 @@ public static class LedgerAnalytics
     private const long MaxCycleSeconds = 4 * 86400;
 
     public static SortedDictionary<DateOnly, DayTotal> Daily(
-        IEnumerable<Voyage> voyages, IEnumerable<LedgerEntry> entries, BusinessCalendar calendar, ulong fcId = 0)
+        IEnumerable<Voyage> voyages, IEnumerable<LedgerEntry> entries, BusinessCalendar calendar, FcFilter fcs = default)
     {
         var days = new SortedDictionary<DateOnly, DayTotal>();
 
@@ -116,7 +116,7 @@ public static class LedgerAnalytics
 
         foreach (var v in voyages)
         {
-            if (v.Deleted || (fcId != 0 && v.FcId != fcId))
+            if (v.Deleted || !fcs.Includes(v.FcId))
                 continue;
 
             var date = calendar.DateOf(v.CollectedUnix);
@@ -130,7 +130,7 @@ public static class LedgerAnalytics
         {
             // Entries not tied to a Free Company only show in the combined view. Spending is not income and does not
             // make a day "recorded"; it is handled by FinanceAnalytics.
-            if (e.Deleted || (fcId != 0 && e.FcId != fcId) || ExpenseCategories.IsCost(e.Kind))
+            if (e.Deleted || !fcs.Includes(e.FcId) || ExpenseCategories.IsCost(e.Kind))
                 continue;
 
             var date = e.BusinessDate;
@@ -216,10 +216,10 @@ public static class LedgerAnalytics
         };
     }
 
-    public static List<GroupStats> BySubmarine(IEnumerable<Voyage> voyages, ulong fcId = 0)
+    public static List<GroupStats> BySubmarine(IEnumerable<Voyage> voyages, FcFilter fcs = default)
     {
         var groups = new Dictionary<(ulong, uint), List<Voyage>>();
-        foreach (var v in Filter(voyages, fcId))
+        foreach (var v in Filter(voyages, fcs))
         {
             var key = (v.FcId, v.SubRegister);
             if (!groups.TryGetValue(key, out var list))
@@ -248,10 +248,10 @@ public static class LedgerAnalytics
         return [.. result.OrderByDescending(g => g.TotalGil)];
     }
 
-    public static List<GroupStats> ByRoute(IEnumerable<Voyage> voyages, ulong fcId = 0)
+    public static List<GroupStats> ByRoute(IEnumerable<Voyage> voyages, FcFilter fcs = default)
     {
         var bySub = new Dictionary<(ulong, uint), List<Voyage>>();
-        foreach (var v in Filter(voyages, fcId))
+        foreach (var v in Filter(voyages, fcs))
         {
             var key = (v.FcId, v.SubRegister);
             if (!bySub.TryGetValue(key, out var list))
@@ -286,8 +286,45 @@ public static class LedgerAnalytics
             .OrderByDescending(g => g.TotalGil)];
     }
 
-    private static IEnumerable<Voyage> Filter(IEnumerable<Voyage> voyages, ulong fcId)
-        => voyages.Where(v => !v.Deleted && (fcId == 0 || v.FcId == fcId));
+    /// <summary>
+    /// Income per Free Company, with gil per 24 hours measured per submarine and pooled: each company's rate is what
+    /// its whole fleet earned per day of real time.
+    /// </summary>
+    public static List<GroupStats> ByFreeCompany(IEnumerable<Voyage> voyages, Func<ulong, string> nameOf, FcFilter fcs = default)
+    {
+        var bySub = new Dictionary<(ulong, uint), List<Voyage>>();
+        foreach (var v in Filter(voyages, fcs))
+        {
+            var key = (v.FcId, v.SubRegister);
+            if (!bySub.TryGetValue(key, out var list))
+                bySub[key] = list = [];
+            list.Add(v);
+        }
+
+        var companies = new Dictionary<ulong, (int Count, long Total, long Gil, long Seconds, long Last)>();
+        foreach (var ((fc, _), list) in bySub)
+        {
+            list.Sort((a, b) => a.CollectedUnix.CompareTo(b.CollectedUnix));
+            var c = companies.GetValueOrDefault(fc);
+            long gil = c.Gil, seconds = c.Seconds;
+            for (var i = 1; i < list.Count; i++)
+                Accumulate(list[i], list[i - 1], ref gil, ref seconds);
+            companies[fc] = (c.Count + list.Count, c.Total + list.Sum(v => v.TotalGil), gil, seconds, Math.Max(c.Last, list[^1].CollectedUnix));
+        }
+
+        return [.. companies
+            .Select(kv => new GroupStats(kv.Key.ToString("X", System.Globalization.CultureInfo.InvariantCulture), nameOf(kv.Key))
+            {
+                Voyages = kv.Value.Count,
+                TotalGil = kv.Value.Total,
+                GilPer24Hours = Rate(kv.Value.Gil, kv.Value.Seconds),
+                LastCollectedUnix = kv.Value.Last,
+            })
+            .OrderByDescending(g => g.TotalGil)];
+    }
+
+    private static IEnumerable<Voyage> Filter(IEnumerable<Voyage> voyages, FcFilter fcs)
+        => voyages.Where(v => !v.Deleted && fcs.Includes(v.FcId));
 
     /// <summary>
     /// Adds a voyage to a rate calculation. Its time cost is the real time since the same submarine's previous

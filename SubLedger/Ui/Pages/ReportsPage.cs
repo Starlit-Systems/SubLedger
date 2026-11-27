@@ -25,7 +25,11 @@ internal sealed class ReportsPage
         Items,
         Submarines,
         Routes,
+        Companies,
     }
+
+    /// <summary>One Free Company's figures for the chosen period, for side-by-side comparison.</summary>
+    private sealed record CompanyRow(string Name, long Income, int Voyages, long AveragePerDay, long PerVoyage, long Per24Hours, int RecordedDays, int CoveredDays, long Net);
 
     private static readonly string[] DateFormats = ["yyyy-M-d", "M/d/yyyy", "d MMM yyyy"];
     private static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
@@ -43,7 +47,8 @@ internal sealed class ReportsPage
     private ChartMode chartMode = ChartMode.PerPeriod;
     private Breakdown breakdown = Breakdown.Items;
 
-    private (long Version, ulong Fc, string Zone, int Cutoff, DateOnly Today, DateRange Range, PeriodGrouping Grouping) cacheKey;
+    private (long Version, FcFilter Fc, string Zone, int Cutoff, DateOnly Today, DateRange Range, PeriodGrouping Grouping) cacheKey;
+    private List<CompanyRow> companies = [];
     private RangeReport report = new();
     private SortedDictionary<DateOnly, DayTotal> days = [];
     private List<Voyage> voyagesInRange = [];
@@ -69,7 +74,7 @@ internal sealed class ReportsPage
         var calendar = plugin.Calendar;
         var today = calendar.Today(DateTimeOffset.Now);
         var snapshot = plugin.Store.Snapshot();
-        var fc = plugin.Config.SelectedFreeCompany;
+        var fc = plugin.Scope;
 
         // The ledger's first day is needed before the range (for "Lifetime"), so the daily picture comes first.
         if (cacheKey.Version != snapshot.Version || cacheKey.Fc != fc || cacheKey.Zone != calendar.Zone.Id || cacheKey.Cutoff != calendar.CutoffMinutes)
@@ -80,7 +85,7 @@ internal sealed class ReportsPage
             // "Lifetime" also takes in spending from before the first voyage, such as the parts and the plot.
             foreach (var e in snapshot.Entries)
             {
-                if (!e.Deleted && ExpenseCategories.IsCost(e.Kind) && (fc == 0 || e.FcId == fc) && (firstDay is null || e.BusinessDate < firstDay))
+                if (!e.Deleted && ExpenseCategories.IsCost(e.Kind) && fc.Includes(e.FcId) && (firstDay is null || e.BusinessDate < firstDay))
                     firstDay = e.BusinessDate;
             }
         }
@@ -97,7 +102,26 @@ internal sealed class ReportsPage
 
         cacheKey = key;
         report = LedgerReports.Build(snapshot.Voyages, snapshot.Entries, calendar, range, grouping, today, fc);
-        voyagesInRange = [.. snapshot.Voyages.Where(v => (fc == 0 || v.FcId == fc) && range.Contains(calendar.DateOf(v.CollectedUnix)))];
+        voyagesInRange = [.. snapshot.Voyages.Where(v => fc.Includes(v.FcId) && range.Contains(calendar.DateOf(v.CollectedUnix)))];
+
+        // Each Free Company in view on its own, when there is more than one to compare.
+        companies = [];
+        var inView = snapshot.FreeCompanies.Where(c => fc.Includes(c.FcId)).ToList();
+        if (inView.Count > 1)
+        {
+            var rates = LedgerAnalytics.ByFreeCompany(voyagesInRange, id => id.ToString("X", Inv), fc).ToDictionary(g => g.Key, g => g.GilPer24Hours);
+            foreach (var company in inView)
+            {
+                var r = LedgerReports.Build(snapshot.Voyages, snapshot.Entries, calendar, range, grouping, today, company.FcId);
+                companies.Add(new CompanyRow(company.DisplayName, r.TotalGil, r.Voyages, r.AveragePerDay, r.AveragePerVoyage,
+                    rates.GetValueOrDefault(company.FcId.ToString("X", Inv)), r.RecordedDays, r.Covered?.Days ?? 0, r.NetGil));
+            }
+
+            companies.Sort((a, b) => b.Income.CompareTo(a.Income));
+        }
+
+        if (breakdown == Breakdown.Companies && companies.Count < 2)
+            breakdown = Breakdown.Items;
 
         if (preset != RangePreset.Custom)
         {
@@ -112,8 +136,7 @@ internal sealed class ReportsPage
         Refresh();
         var assets = plugin.Assets;
         var snapshot = plugin.Store.Snapshot();
-        var company = snapshot.FreeCompanies.FirstOrDefault(c => c.FcId == plugin.Config.SelectedFreeCompany);
-        var scope = company?.DisplayName ?? (snapshot.FreeCompanies.Count > 1 ? "All Free Companies combined" : snapshot.FreeCompanies.FirstOrDefault()?.DisplayName ?? "Your submarines");
+        var scope = plugin.ScopeLabel();
         Widgets.PageHeader("Reports", $"{scope} · {report.Range} · {report.Range.Days} {(report.Range.Days == 1 ? "day" : "days")}", assets);
 
         DrawFilters(assets);
@@ -134,6 +157,11 @@ internal sealed class ReportsPage
         Widgets.VSpace(6f);
         DrawBreakdown(assets);
         Widgets.VSpace(10f);
+        if (companies.Count > 1)
+        {
+            DrawCompanies(assets);
+            Widgets.VSpace(10f);
+        }
         DrawPeriodTable(assets);
         Widgets.VSpace(10f);
         DrawExport(assets);
@@ -346,7 +374,9 @@ internal sealed class ReportsPage
         Widgets.BeginPanel();
         Widgets.Text("Where the gil came from", Theme.Text, assets.Heading);
 
-        var options = new[] { (Breakdown.Items, "Items"), (Breakdown.Submarines, "Submarines"), (Breakdown.Routes, "Routes") };
+        var options = companies.Count > 1
+            ? new[] { (Breakdown.Companies, "Free Companies"), (Breakdown.Items, "Items"), (Breakdown.Submarines, "Submarines"), (Breakdown.Routes, "Routes") }
+            : new[] { (Breakdown.Items, "Items"), (Breakdown.Submarines, "Submarines"), (Breakdown.Routes, "Routes") };
         var pillsWidth = options.Sum(o => Widgets.PillSize(o.Item2, assets, dot: false).X + Theme.S(6f)) + Theme.S(8f) * (options.Length - 1);
         ImGui.SameLine();
         ImGui.SetCursorScreenPos(new Vector2(Widgets.PanelRight - pillsWidth, ImGui.GetCursorScreenPos().Y));
@@ -376,6 +406,9 @@ internal sealed class ReportsPage
             case Breakdown.Submarines:
                 rows.AddRange(report.BySubmarine.Take(Shown + 1).Select(g => new RankedItem(g.Label, g.TotalGil, GroupDetail(g))));
                 break;
+            case Breakdown.Companies:
+                rows.AddRange(companies.Select(c => new RankedItem(c.Name, c.Income, $"{c.Voyages.ToString("N0", Inv)} voyages, {GilFormat.Exact(c.AveragePerDay)} gil a day on average")));
+                break;
             default:
                 rows.AddRange(report.ByRoute.Take(Shown).Select(g => new RankedItem(g.Label, g.TotalGil, GroupDetail(g))));
                 if (report.ByRoute.Count > Shown)
@@ -387,7 +420,7 @@ internal sealed class ReportsPage
                 break;
         }
 
-        if (report.ManualGil > 0)
+        if (report.ManualGil > 0 && breakdown != Breakdown.Companies)
             rows.Add(new RankedItem("Hand-kept totals and corrections", report.ManualGil, "Income entered by hand, with no voyage detail behind it"));
 
         BarChart.DrawRanked(rows, Math.Max(1, report.TotalGil), assets);
@@ -398,6 +431,68 @@ internal sealed class ReportsPage
     {
         var text = $"{g.Voyages.ToString("N0", Inv)} {(g.Voyages == 1 ? "voyage" : "voyages")}, {GilFormat.Exact(g.AveragePerVoyage)} gil each on average";
         return g.GilPer24Hours == 0 ? text : text + $"\n{GilFormat.Exact(g.GilPer24Hours)} gil per 24 hours";
+    }
+
+    /// <summary>The Free Companies in view, side by side, for the chosen period.</summary>
+    private void DrawCompanies(UiAssets assets)
+    {
+        var rowHeight = ImGui.GetTextLineHeight() + Theme.S(12f);
+        var hasCosts = report.RunningCostsGil != 0;
+        Widgets.BeginCard("##companies", new Vector2(0, Theme.S(66f) + rowHeight * (companies.Count + 1)));
+        Widgets.Text("Free Companies side by side", Theme.Text, assets.Heading);
+        Widgets.VSpace(2f);
+
+        var columns = hasCosts ? 7 : 6;
+        ImGui.PushStyleVar(ImGuiStyleVar.CellPadding, Theme.S(6f, 6f));
+        if (ImGui.BeginTable("##companyTable", columns, ImGuiTableFlags.SizingStretchProp | ImGuiTableFlags.BordersInnerH | ImGuiTableFlags.NoSavedSettings))
+        {
+            ImGui.TableSetupColumn("Free Company", ImGuiTableColumnFlags.WidthStretch, 2.4f);
+            for (var i = 1; i < columns; i++)
+                ImGui.TableSetupColumn($"c{i}", ImGuiTableColumnFlags.WidthStretch, 1.2f);
+
+            ImGui.TableNextRow();
+            ImGui.TableNextColumn();
+            Widgets.Text("FREE COMPANY", Theme.TextDim, assets.Small);
+            var headers = new List<string> { "INCOME", "PER DAY", "VOYAGES", "PER VOYAGE", "PER 24H" };
+            if (hasCosts)
+                headers.Insert(1, "AFTER COSTS");
+            foreach (var header in headers)
+            {
+                ImGui.TableNextColumn();
+                using (assets.Small.Push())
+                    Widgets.TextRight(header, Theme.TextDim);
+            }
+
+            foreach (var c in companies)
+            {
+                ImGui.TableNextRow();
+                ImGui.TableNextColumn();
+                Widgets.Text(c.Name, Theme.Text);
+                ImGui.TableNextColumn();
+                Widgets.TextRight(GilFormat.Short(c.Income), Theme.Gold);
+                Widgets.Tooltip($"{GilFormat.Exact(c.Income)} gil, {c.RecordedDays} of {c.CoveredDays} days recorded");
+                if (hasCosts)
+                {
+                    ImGui.TableNextColumn();
+                    Widgets.TextRight(GilFormat.Short(c.Net), Theme.TextSoft);
+                    Widgets.Tooltip($"{GilFormat.Exact(c.Net)} gil after running costs");
+                }
+
+                ImGui.TableNextColumn();
+                Widgets.TextRight(GilFormat.Short(c.AveragePerDay), Theme.TextSoft);
+                ImGui.TableNextColumn();
+                Widgets.TextRight(c.Voyages.ToString("N0", Inv), Theme.TextSoft);
+                ImGui.TableNextColumn();
+                Widgets.TextRight(GilFormat.Short(c.PerVoyage), Theme.TextSoft);
+                ImGui.TableNextColumn();
+                Widgets.TextRight(c.Per24Hours == 0 ? "-" : GilFormat.Short(c.Per24Hours), Theme.Teal);
+            }
+
+            ImGui.EndTable();
+        }
+
+        ImGui.PopStyleVar();
+        Widgets.EndCard();
     }
 
     /// <summary>The chart's numbers as a table, newest period first.</summary>

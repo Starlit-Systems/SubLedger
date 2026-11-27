@@ -1,9 +1,11 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface;
 using Dalamud.Interface.Windowing;
+using SubLedger.Core.Analytics;
 using SubLedger.Ui.Pages;
 
 namespace SubLedger.Ui;
@@ -183,48 +185,60 @@ internal sealed class MainWindow : Window
         DrawFreeCompanyPicker(new Vector2(pillPos.X - Theme.S(14f), origin.Y), height);
     }
 
+    /// <summary>
+    /// Which Free Companies every page shows: all of them, one, or any mix. Shown only when there is more than one.
+    /// </summary>
     private void DrawFreeCompanyPicker(Vector2 rightEdge, float headerHeight)
     {
         var companies = plugin.Store.Snapshot().FreeCompanies;
         if (companies.Count < 2)
-        {
-            // With one Free Company there is nothing to choose between.
-            if (plugin.Config.SelectedFreeCompany != 0 && companies.All(c => c.FcId != plugin.Config.SelectedFreeCompany))
-                plugin.Config.SelectedFreeCompany = 0;
             return;
-        }
 
-        var selected = companies.FirstOrDefault(c => c.FcId == plugin.Config.SelectedFreeCompany);
-        var preview = selected?.DisplayName ?? "All Free Companies";
-        var comboWidth = Theme.S(230f);
+        var scope = plugin.Scope;
+        var shown = companies.Where(c => scope.Includes(c.FcId)).ToList();
+        var preview = scope.IsAll ? "All Free Companies" : shown.Count == 1 ? shown[0].DisplayName : $"{shown.Count} of {companies.Count} Free Companies";
+        var width = Theme.S(250f);
         var frameHeight = ImGui.GetFrameHeight();
 
-        ImGui.SetCursorScreenPos(new Vector2(rightEdge.X - comboWidth, rightEdge.Y + (headerHeight - frameHeight) * 0.5f));
-        ImGui.SetNextItemWidth(comboWidth);
-        ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, Theme.S(8f, 8f));
-        if (ImGui.BeginCombo("##fc", preview))
+        ImGui.SetCursorScreenPos(new Vector2(rightEdge.X - width, rightEdge.Y + (headerHeight - frameHeight) * 0.5f));
+        ImGui.SetNextItemWidth(width);
+        ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, Theme.S(10f, 10f));
+        if (ImGui.BeginCombo("##fcScope", preview, ImGuiComboFlags.HeightLarge))
         {
-            if (ImGui.Selectable("All Free Companies", plugin.Config.SelectedFreeCompany == 0))
-            {
-                plugin.Config.SelectedFreeCompany = 0;
-                plugin.Config.Save();
-            }
+            Widgets.Text("Show income from", Theme.TextDim, plugin.Assets.Small);
+            if (ImGui.Selectable("All Free Companies", scope.IsAll, ImGuiSelectableFlags.DontClosePopups))
+                plugin.SetScope(FcFilter.All);
+            ImGui.Separator();
 
             foreach (var fc in companies)
             {
-                if (ImGui.Selectable($"{fc.DisplayName}##{fc.FcId:X}", plugin.Config.SelectedFreeCompany == fc.FcId))
+                var ticked = scope.Includes(fc.FcId) && !scope.IsAll;
+                if (ImGui.Checkbox($"{fc.DisplayName}##{fc.FcId:X}", ref ticked))
                 {
-                    plugin.Config.SelectedFreeCompany = fc.FcId;
-                    plugin.Config.Save();
+                    // Ticking adds to the current choice; with "all" showing, the first tick narrows to just that one.
+                    var chosen = scope.IsAll ? new List<ulong>() : [.. scope.Ids];
+                    if (ticked)
+                        chosen.Add(fc.FcId);
+                    else
+                        chosen.Remove(fc.FcId);
+                    plugin.SetScope(FcFilter.Of(chosen));
                 }
+
+                ImGui.SameLine();
+                ImGui.SetCursorPosX(ImGui.GetWindowContentRegionMax().X - ImGui.CalcTextSize("only").X - Theme.S(4f));
+                ImGui.PushStyleColor(ImGuiCol.Text, Theme.Teal);
+                if (ImGui.Selectable($"only##only{fc.FcId:X}", false, ImGuiSelectableFlags.DontClosePopups, ImGui.CalcTextSize("only")))
+                    plugin.SetScope(fc.FcId);
+                ImGui.PopStyleColor();
             }
 
+            ImGui.Separator();
+            Widgets.Text("Every page, and exports, follow this choice.", Theme.TextDim, plugin.Assets.Small);
             ImGui.EndCombo();
         }
 
         ImGui.PopStyleVar();
     }
-
     private void DrawSidebar(UiAssets assets)
     {
         Tab("Dashboard", FontAwesomeIcon.ChartLine, Page.Dashboard);

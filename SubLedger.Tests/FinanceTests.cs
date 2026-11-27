@@ -109,8 +109,8 @@ public class FinanceTests
         Voyage[] voyages = [V(Start, 1_000_000, fc: 1), V(Start, 50_000, fc: 2)];
         LedgerEntry[] costs = [Cost(Start, 500_000, fc: 1), Cost(Start, 500_000, fc: 2)];
 
-        var first = FinanceAnalytics.Summarize(LedgerAnalytics.Daily(voyages, costs, Utc, fcId: 1), costs, Start, fcId: 1);
-        var second = FinanceAnalytics.Summarize(LedgerAnalytics.Daily(voyages, costs, Utc, fcId: 2), costs, Start, fcId: 2);
+        var first = FinanceAnalytics.Summarize(LedgerAnalytics.Daily(voyages, costs, Utc, fcs: 1), costs, Start, fcs: 1);
+        var second = FinanceAnalytics.Summarize(LedgerAnalytics.Daily(voyages, costs, Utc, fcs: 2), costs, Start, fcs: 2);
         var combined = FinanceAnalytics.Summarize(LedgerAnalytics.Daily(voyages, costs, Utc), costs, Start);
 
         Assert.Equal(500_000, first.ProfitGil);
@@ -203,7 +203,7 @@ public class MultiCompanyTests
     [Fact]
     public void Viewing_one_company_counts_only_its_own_records()
     {
-        var days = LedgerAnalytics.Daily([V(1, 100_000)], [Hand(2, 40_000)], Utc, fcId: 2);
+        var days = LedgerAnalytics.Daily([V(1, 100_000)], [Hand(2, 40_000)], Utc, fcs: 2);
 
         Assert.Equal(40_000, days[Day].IncomeGil);
         Assert.False(days[Day].ManualExcluded);
@@ -236,4 +236,80 @@ public class FuelTests
     [Fact]
     public void Ceruleum_tanks_are_not_offered_as_a_gil_cost()
         => Assert.DoesNotContain(ExpenseCategories.All, c => c.Name.Contains("Ceruleum", StringComparison.OrdinalIgnoreCase));
+}
+
+public class FreeCompanyFilterTests
+{
+    private static readonly BusinessCalendar Utc = new(TimeZoneInfo.Utc, 0);
+    private static readonly DateOnly Day = new(2026, 5, 5);
+
+    private static Voyage V(ulong fc, long gil, uint sub = 1, long offset = 0)
+        => new() { FcId = fc, SubRegister = sub, Route = "OJ", CollectedUnix = new DateTimeOffset(2026, 5, 5, 12, 0, 0, TimeSpan.Zero).ToUnixTimeSeconds() + offset, TotalGil = gil };
+
+    private static readonly Voyage[] Three = [V(1, 100_000), V(2, 40_000), V(3, 7_000)];
+
+    [Fact]
+    public void Any_combination_of_free_companies_can_be_shown()
+    {
+        Assert.Equal(147_000, LedgerAnalytics.Daily(Three, [], Utc)[Day].IncomeGil);
+        Assert.Equal(140_000, LedgerAnalytics.Daily(Three, [], Utc, FcFilter.Of([1, 2]))[Day].IncomeGil);
+        Assert.Equal(47_000, LedgerAnalytics.Daily(Three, [], Utc, FcFilter.Of([3, 2]))[Day].IncomeGil);
+        Assert.Equal(7_000, LedgerAnalytics.Daily(Three, [], Utc, 3UL)[Day].IncomeGil);
+    }
+
+    [Fact]
+    public void Choosing_nothing_means_everything()
+    {
+        Assert.True(FcFilter.Of([]).IsAll);
+        Assert.True(((FcFilter)0UL).IsAll);
+        Assert.Equal(FcFilter.All, FcFilter.Of([0]));
+    }
+
+    [Fact]
+    public void The_same_choice_in_any_order_is_the_same_filter()
+    {
+        Assert.Equal(FcFilter.Of([2, 1]), FcFilter.Of([1, 2, 2]));
+        Assert.Equal(FcFilter.Of([2, 1]).GetHashCode(), FcFilter.Of([1, 2]).GetHashCode());
+        Assert.NotEqual(FcFilter.Of([1]), FcFilter.Of([1, 2]));
+        Assert.Equal(2UL, FcFilter.Of([2]).Single);
+        Assert.Equal(0UL, FcFilter.Of([1, 2]).Single);
+    }
+
+    [Fact]
+    public void Records_with_no_free_company_show_only_when_all_are_shown()
+    {
+        LedgerEntry[] entries = [new() { Kind = LedgerEntryKind.HistoricalDay, BusinessDate = Day.AddDays(1), AmountGil = 5_000, FcId = 0 }];
+
+        Assert.True(LedgerAnalytics.Daily(Three, entries, Utc).ContainsKey(Day.AddDays(1)));
+        Assert.False(LedgerAnalytics.Daily(Three, entries, Utc, FcFilter.Of([1, 2])).ContainsKey(Day.AddDays(1)));
+    }
+
+    [Fact]
+    public void Free_companies_can_be_compared_side_by_side()
+    {
+        Voyage[] voyages = [V(1, 100_000), V(1, 100_000, offset: 86400), V(2, 40_000), V(2, 40_000, offset: 86400), V(3, 7_000)];
+
+        var stats = LedgerAnalytics.ByFreeCompany(voyages, fc => $"FC {fc}", FcFilter.Of([1, 2]));
+
+        Assert.Equal(["FC 1", "FC 2"], stats.Select(s => s.Label));
+        Assert.Equal(200_000, stats[0].TotalGil);
+        Assert.Equal(100_000, stats[0].GilPer24Hours);
+        Assert.Equal(2, stats[1].Voyages);
+    }
+
+    [Fact]
+    public void Payback_can_cover_several_chosen_free_companies()
+    {
+        LedgerEntry[] costs =
+        [
+            new() { Kind = LedgerEntryKind.Investment, BusinessDate = Day, AmountGil = 120_000, FcId = 1 },
+            new() { Kind = LedgerEntryKind.Investment, BusinessDate = Day, AmountGil = 999_999, FcId = 3 },
+        ];
+        var chosen = FcFilter.Of([1, 2]);
+
+        var summary = FinanceAnalytics.Summarize(LedgerAnalytics.Daily(Three, costs, Utc, chosen), costs, Day, chosen);
+
+        Assert.Equal(120_000, summary.InvestedGil);
+        Assert.Equal(20_000, summary.ProfitGil);
+    }
 }

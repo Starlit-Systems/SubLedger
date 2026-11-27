@@ -18,11 +18,12 @@ internal sealed class DashboardPage
 {
     private readonly Plugin plugin;
 
-    private (long Version, ulong Fc, string Zone, int Cutoff, DateOnly Today) cacheKey;
+    private (long Version, FcFilter Scope, string Zone, int Cutoff, DateOnly Today) cacheKey;
     private SortedDictionary<DateOnly, DayTotal> days = [];
     private LedgerSummary summary = new();
     private List<GroupStats> bySubmarine = [];
     private List<GroupStats> byRoute = [];
+    private List<GroupStats> byCompany = [];
     private FinanceSummary finance = new();
     private sealed record SubLatest(uint Register, string Name, IReadOnlyList<Voyage> Voyages);
 
@@ -50,22 +51,24 @@ internal sealed class DashboardPage
         var calendar = plugin.Calendar;
         var today = calendar.Today(DateTimeOffset.Now);
         var snapshot = plugin.Store.Snapshot();
-        var key = (snapshot.Version, plugin.Config.SelectedFreeCompany, calendar.Zone.Id, calendar.CutoffMinutes, today);
+        var fc = plugin.Scope;
+        var key = (snapshot.Version, fc, calendar.Zone.Id, calendar.CutoffMinutes, today);
         if (key == cacheKey)
             return;
 
         cacheKey = key;
-        var fc = plugin.Config.SelectedFreeCompany;
         days = LedgerAnalytics.Daily(snapshot.Voyages, snapshot.Entries, calendar, fc);
         summary = LedgerAnalytics.Summarize(days, today);
         bySubmarine = LedgerAnalytics.BySubmarine(snapshot.Voyages, fc);
         byRoute = LedgerAnalytics.ByRoute(snapshot.Voyages, fc);
         finance = FinanceAnalytics.Summarize(days, snapshot.Entries, today, fc);
+        var names = snapshot.FreeCompanies.ToDictionary(c => c.FcId, c => c.DisplayName);
+        byCompany = LedgerAnalytics.ByFreeCompany(snapshot.Voyages, id => names.GetValueOrDefault(id, $"Free Company {id:X}"), fc);
 
         // The last five voyages of every submarine, grouped by Free Company. Voyages arrive newest first, so the first
         // of each group is the most recent. Submarines that have not sailed for a long while (replaced or retired) are
         // left out so each row is the current fleet, and so are Free Companies that have stopped sending subs out.
-        var shown = snapshot.Voyages.Where(v => fc == 0 || v.FcId == fc).ToList();
+        var shown = snapshot.Voyages.Where(v => fc.Includes(v.FcId)).ToList();
         var newest = shown.Count == 0 ? 0 : shown[0].CollectedUnix;
         latest = [.. shown
             .GroupBy(v => v.FcId)
@@ -93,8 +96,7 @@ internal sealed class DashboardPage
         Refresh();
         var assets = plugin.Assets;
         var snapshot = plugin.Store.Snapshot();
-        var fc = snapshot.FreeCompanies.FirstOrDefault(c => c.FcId == plugin.Config.SelectedFreeCompany);
-        var scope = fc?.DisplayName ?? (snapshot.FreeCompanies.Count > 1 ? "All Free Companies combined" : snapshot.FreeCompanies.FirstOrDefault()?.DisplayName ?? "Your submarines");
+        var scope = plugin.ScopeLabel();
 
         Widgets.PageHeader("Dashboard", $"{scope} · income counts on the day it was collected", assets);
 
@@ -309,6 +311,13 @@ internal sealed class DashboardPage
         var rows = sideBySide ? Math.Max(subs.Count, routes.Count) : 0;
 
         float CardHeight(int count) => Theme.S(66f) + rowHeight * (count + 1);
+
+        // With several Free Companies in view, how they compare comes first.
+        if (byCompany.Count > 1)
+        {
+            DrawGroupCard("##byFc", "By Free Company", "Free Company", byCompany, new Vector2(available, CardHeight(byCompany.Count)), assets);
+            Widgets.VSpace(6f);
+        }
 
         DrawGroupCard("##bySub", "By submarine", "Submarine", subs, new Vector2(width, CardHeight(sideBySide ? rows : subs.Count)), assets);
         if (sideBySide)

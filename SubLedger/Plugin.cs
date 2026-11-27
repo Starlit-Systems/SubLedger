@@ -15,6 +15,7 @@ using SubLedger.Core.Capture;
 using SubLedger.Core.Export;
 using SubLedger.Core.Model;
 using SubLedger.Core.Report;
+using FreeCompany = SubLedger.Core.Model.FreeCompany;
 using SubLedger.Core.Import;
 using SubLedger.Core.Storage;
 using SubLedger.Game;
@@ -38,6 +39,14 @@ public sealed class Plugin : IDalamudPlugin
 
         Version = typeof(Plugin).Assembly.GetName().Version?.ToString() ?? "0.0.0.0";
         Config = Service.PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
+        if (Config.SelectedFreeCompany != 0)
+        {
+            // Settings from before several Free Companies could be chosen at once.
+            if (Config.SelectedFreeCompanies.Count == 0)
+                Config.SelectedFreeCompanies.Add(Config.SelectedFreeCompany);
+            Config.SelectedFreeCompany = 0;
+            Config.Save();
+        }
 
         Log = new LedgerLog();
         Log.LineAdded += MirrorToDalamudLog;
@@ -303,8 +312,8 @@ public sealed class Plugin : IDalamudPlugin
             File.WriteAllText(Path.Combine(ExportDirectory, ExportName(report.Range, "voyages.csv")), LedgerExport.VoyagesCsv(voyages, context), utf8);
             File.WriteAllText(Path.Combine(ExportDirectory, ExportName(report.Range, "items.csv")), LedgerExport.LootCsv(voyages, context), utf8);
             File.WriteAllText(Path.Combine(ExportDirectory, ExportName(report.Range, "daily.csv")), LedgerExport.DailyCsv(days, report.Range), utf8);
-            var costs = Store.Snapshot().Entries.Where(e => ExpenseCategories.IsCost(e.Kind) && report.Range.Contains(e.BusinessDate)
-                && (Config.SelectedFreeCompany == 0 || e.FcId == Config.SelectedFreeCompany)).ToList();
+            var scope = Scope;
+            var costs = Store.Snapshot().Entries.Where(e => ExpenseCategories.IsCost(e.Kind) && report.Range.Contains(e.BusinessDate) && scope.Includes(e.FcId)).ToList();
             if (costs.Count == 0)
                 return $"Three spreadsheet files written to {ExportDirectory}";
 
@@ -317,7 +326,8 @@ public sealed class Plugin : IDalamudPlugin
         => RunExport("Export data file", () =>
         {
             var name = ExportName(report.Range, "data.json");
-            var costs = Store.Snapshot().Entries.Where(e => Config.SelectedFreeCompany == 0 || e.FcId == Config.SelectedFreeCompany);
+            var scope = Scope;
+            var costs = Store.Snapshot().Entries.Where(e => scope.Includes(e.FcId));
             File.WriteAllText(Path.Combine(ExportDirectory, name), LedgerExport.Json(report, voyages, days, NewExportContext(), DateTimeOffset.UtcNow, costs), new UTF8Encoding(false));
             return $"{name} written to {ExportDirectory}";
         });
@@ -365,7 +375,7 @@ public sealed class Plugin : IDalamudPlugin
                 Log.Debug("Export", $"Report logo not found: {ex.Message}");
             }
 
-            var html = HtmlReport.Build(Store.Snapshot(), calendar, Sectors, today, new ReportStart(range, preset, grouping, Config.SelectedFreeCompany), Version, logo, DateTimeOffset.Now);
+            var html = HtmlReport.Build(Store.Snapshot(), calendar, Sectors, today, new ReportStart(range, preset, grouping, Scope), Version, logo, DateTimeOffset.Now);
             var name = $"SubLedger report {today:yyyy-MM-dd}.html";
             var path = Path.Combine(ExportDirectory, name);
             File.WriteAllText(path, html, new UTF8Encoding(false));
@@ -386,11 +396,51 @@ public sealed class Plugin : IDalamudPlugin
         }
     }
 
+    /// <summary>
+    /// The Free Companies the window shows. Choices that no longer match a known Free Company are ignored, and a
+    /// choice covering every Free Company is simply "all", so new ones appear without being ticked.
+    /// </summary>
+    public FcFilter Scope
+    {
+        get
+        {
+            var known = Store.Snapshot().FreeCompanies.Select(c => c.FcId).ToHashSet();
+            var chosen = Config.SelectedFreeCompanies.Where(known.Contains).Distinct().ToList();
+            return chosen.Count == 0 || chosen.Count == known.Count ? FcFilter.All : FcFilter.Of(chosen);
+        }
+    }
+
+    public void SetScope(FcFilter scope)
+    {
+        Config.SelectedFreeCompanies = [.. scope.Ids];
+        Config.Save();
+    }
+
+    /// <summary>The Free Companies currently in view, by name.</summary>
+    public List<FreeCompany> CompaniesInScope()
+    {
+        var scope = Scope;
+        return [.. Store.Snapshot().FreeCompanies.Where(c => scope.Includes(c.FcId))];
+    }
+
+    /// <summary>Short words for what the window is showing: "Starlit (Golem)", "All Free Companies combined", "2 Free Companies".</summary>
+    public string ScopeLabel()
+    {
+        var all = Store.Snapshot().FreeCompanies;
+        var shown = CompaniesInScope();
+        if (all.Count == 0)
+            return "Your submarines";
+        if (shown.Count == 1)
+            return shown[0].DisplayName;
+        return Scope.IsAll ? (all.Count > 1 ? "All Free Companies combined" : all[0].DisplayName) : $"{shown.Count} Free Companies combined";
+    }
+
     /// <summary>The Free Company a hand-entered record belongs to: the one being viewed, or the only one there is.</summary>
     public ulong ManualEntryFreeCompany()
     {
-        if (Config.SelectedFreeCompany != 0)
-            return Config.SelectedFreeCompany;
+        var single = Scope.Single;
+        if (single != 0)
+            return single;
 
         var companies = Store.Snapshot().FreeCompanies;
         return companies.Count == 1 ? companies[0].FcId : 0;

@@ -353,7 +353,7 @@ public class HtmlReportTests
         ledger.Store.RecordVoyage(TempLedger.OjHaul(1_780_000_000) with { SubName = "</script><script>alert(1)</script>" });
         var calendar = new SubLedger.Core.Analytics.BusinessCalendar(TimeZoneInfo.Utc, 0);
         var today = calendar.DateOf(1_780_000_000);
-        var start = new SubLedger.Core.Report.ReportStart(new DateRange(today.AddDays(-29), today), RangePreset.Last30Days, PeriodGrouping.Day, 0);
+        var start = new SubLedger.Core.Report.ReportStart(new DateRange(today.AddDays(-29), today), RangePreset.Last30Days, PeriodGrouping.Day, FcFilter.All);
 
         var html = SubLedger.Core.Report.HtmlReport.Build(ledger.Store.Snapshot(), calendar, new FakeSectors(), today, start, "1.2.3.4", [1, 2, 3], DateTimeOffset.UnixEpoch);
 

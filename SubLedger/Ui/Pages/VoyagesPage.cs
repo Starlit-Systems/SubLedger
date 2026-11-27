@@ -6,6 +6,7 @@ using System.Numerics;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface;
 using SubLedger.Core;
+using SubLedger.Core.Analytics;
 using SubLedger.Core.Model;
 
 namespace SubLedger.Ui.Pages;
@@ -13,11 +14,11 @@ namespace SubLedger.Ui.Pages;
 /// <summary>Every voyage in the ledger, newest first, with the loot behind each number.</summary>
 internal sealed class VoyagesPage
 {
-    private sealed record Row(Voyage Voyage, string When, string Loot, string Value, string SearchText);
+    private sealed record Row(Voyage Voyage, string When, string Loot, string Value, string SearchText, string SubLabel);
 
     private readonly Plugin plugin;
     private string search = string.Empty;
-    private (long Version, ulong Fc, string Search, string Zone, int Cutoff) cacheKey;
+    private (long Version, FcFilter Fc, string Search, string Zone, int Cutoff) cacheKey;
     private List<Row> rows = [];
     private long filteredGil;
     private string? selectedId;
@@ -31,19 +32,25 @@ internal sealed class VoyagesPage
     {
         var snapshot = plugin.Store.Snapshot();
         var calendar = plugin.Calendar;
-        var key = (snapshot.Version, plugin.Config.SelectedFreeCompany, search, calendar.Zone.Id, calendar.CutoffMinutes);
+        var key = (snapshot.Version, plugin.Scope, search, calendar.Zone.Id, calendar.CutoffMinutes);
         if (key == cacheKey)
             return;
 
         cacheKey = key;
-        var fc = plugin.Config.SelectedFreeCompany;
+        var fc = plugin.Scope;
         var terms = search.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
         rows = [];
         filteredGil = 0;
+
+        // With several Free Companies in view, each voyage says whose it is.
+        var inView = snapshot.FreeCompanies.Where(c => fc.Includes(c.FcId)).ToList();
+        var companyNames = inView.Count > 1
+            ? inView.ToDictionary(c => c.FcId, c => !string.IsNullOrWhiteSpace(c.Name) ? c.Name : !string.IsNullOrWhiteSpace(c.Tag) ? c.Tag : c.DisplayName)
+            : null;
         foreach (var v in snapshot.Voyages)
         {
-            if (fc != 0 && v.FcId != fc)
+            if (!fc.Includes(v.FcId))
                 continue;
 
             var when = calendar.ToLocal(v.CollectedUnix).ToString("ddd d MMM yyyy, HH:mm", CultureInfo.InvariantCulture);
@@ -51,11 +58,14 @@ internal sealed class VoyagesPage
             if (v.Loot.Count > 3)
                 loot += $" +{v.Loot.Count - 3} more";
 
-            var haystack = $"{v.SubName} {v.Route} {when} {string.Join(' ', v.Loot.Select(l => l.ItemName))}";
+            var subName = string.IsNullOrEmpty(v.SubName) ? "Submarine" : v.SubName;
+            var company = companyNames is not null && companyNames.TryGetValue(v.FcId, out var n) ? n : null;
+            var subLabel = company is null ? subName : $"{subName} · {company}";
+            var haystack = $"{subLabel} {v.Route} {when} {string.Join(' ', v.Loot.Select(l => l.ItemName))}";
             if (terms.Length > 0 && !terms.All(t => haystack.Contains(t, StringComparison.OrdinalIgnoreCase)))
                 continue;
 
-            rows.Add(new Row(v, when, loot, GilFormat.Exact(v.TotalGil), haystack));
+            rows.Add(new Row(v, when, loot, GilFormat.Exact(v.TotalGil), haystack, subLabel));
             filteredGil += v.TotalGil;
         }
 
@@ -170,7 +180,7 @@ internal sealed class VoyagesPage
 
             var textY = top + (rowHeight - ImGui.GetTextLineHeight()) * 0.5f;
             Clipped(drawList, windowPos.X + xWhen, textY, whenWidth - Theme.S(10f), row.When, Theme.TextSoft, rowHeight);
-            Clipped(drawList, windowPos.X + xSub, textY, subWidth - Theme.S(10f), string.IsNullOrEmpty(row.Voyage.SubName) ? "Submarine" : row.Voyage.SubName, Theme.Text, rowHeight);
+            Clipped(drawList, windowPos.X + xSub, textY, subWidth - Theme.S(10f), row.SubLabel, Theme.Text, rowHeight);
             Clipped(drawList, windowPos.X + xRoute, textY, routeWidth - Theme.S(8f), row.Voyage.Route, Theme.Teal, rowHeight);
             Clipped(drawList, windowPos.X + xLoot, textY, lootWidth - Theme.S(12f), row.Loot, Theme.TextDim, rowHeight);
             var valueSize = ImGui.CalcTextSize(row.Value);

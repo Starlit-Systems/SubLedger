@@ -46,10 +46,10 @@ public sealed record CategoryTotal(string Category, LedgerEntryKind Kind, long T
 public static class FinanceAnalytics
 {
     public static FinanceSummary Summarize(
-        SortedDictionary<DateOnly, DayTotal> days, IEnumerable<LedgerEntry> entries, DateOnly today, ulong fcId = 0)
+        SortedDictionary<DateOnly, DayTotal> days, IEnumerable<LedgerEntry> entries, DateOnly today, FcFilter fcs = default)
     {
         var costs = entries
-            .Where(e => !e.Deleted && ExpenseCategories.IsCost(e.Kind) && (fcId == 0 || e.FcId == fcId))
+            .Where(e => !e.Deleted && ExpenseCategories.IsCost(e.Kind) && fcs.Includes(e.FcId))
             .ToList();
 
         var invested = costs.Where(e => e.Kind == LedgerEntryKind.Investment).Sum(e => e.AmountGil);
@@ -136,12 +136,12 @@ public static class FinanceAnalytics
     }
 
     /// <summary>Spending dated inside a range.</summary>
-    public static (long RunningCosts, long Invested) InRange(IEnumerable<LedgerEntry> entries, DateRange range, ulong fcId = 0)
+    public static (long RunningCosts, long Invested) InRange(IEnumerable<LedgerEntry> entries, DateRange range, FcFilter fcs = default)
     {
         long running = 0, invested = 0;
         foreach (var e in entries)
         {
-            if (e.Deleted || (fcId != 0 && e.FcId != fcId) || !range.Contains(e.BusinessDate))
+            if (e.Deleted || !fcs.Includes(e.FcId) || !range.Contains(e.BusinessDate))
                 continue;
             if (e.Kind == LedgerEntryKind.Expense)
                 running += e.AmountGil;

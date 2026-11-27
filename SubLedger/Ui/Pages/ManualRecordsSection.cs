@@ -47,7 +47,7 @@ internal sealed class ManualRecordsSection
     private void RefreshPlan()
     {
         var snapshot = plugin.Store.Snapshot();
-        var fc = plugin.ManualEntryFreeCompany();
+        var fc = TargetCompany();
         var key = (listText, startText, snapshot.Version, fc);
         if (key == planKey)
             return;
@@ -72,9 +72,47 @@ internal sealed class ManualRecordsSection
         plan = HistoryImportPlanner.Plan(parsed.Rows, start, existing);
     }
 
+    private ulong chosenFc;
+
+    /// <summary>The Free Company new records go to: the one picked here, or the one in view, or the only one.</summary>
+    private ulong TargetCompany()
+    {
+        var companies = plugin.Store.Snapshot().FreeCompanies;
+        if (companies.Count < 2)
+            return companies.Count == 1 ? companies[0].FcId : 0;
+        if (chosenFc == 0 || companies.All(c => c.FcId != chosenFc))
+            chosenFc = plugin.ManualEntryFreeCompany() is var inView && inView != 0 ? inView : companies[0].FcId;
+        return chosenFc;
+    }
+
     public void Draw(UiAssets assets)
     {
         RefreshPlan();
+
+        var companies = plugin.Store.Snapshot().FreeCompanies;
+        if (companies.Count > 1)
+        {
+            var target = TargetCompany();
+            Widgets.BeginPanel();
+            ImGui.AlignTextToFramePadding();
+            Widgets.Text("Records entered here belong to", Theme.Text);
+            ImGui.SameLine(0, Theme.S(10f));
+            ImGui.SetNextItemWidth(Theme.S(280f));
+            if (ImGui.BeginCombo("##manualFc", companies.FirstOrDefault(c => c.FcId == target)?.DisplayName ?? "Choose"))
+            {
+                foreach (var company in companies)
+                {
+                    if (ImGui.Selectable($"{company.DisplayName}##{company.FcId:X}", company.FcId == target))
+                        chosenFc = company.FcId;
+                }
+
+                ImGui.EndCombo();
+            }
+
+            Widgets.EndPanel();
+            Widgets.VSpace(12f);
+        }
+
         DrawImport(assets);
         Widgets.VSpace(12f);
         DrawBatches(assets);
@@ -83,11 +121,11 @@ internal sealed class ManualRecordsSection
 
     private string CompanyNote()
     {
-        var fc = plugin.ManualEntryFreeCompany();
+        var fc = TargetCompany();
         var company = plugin.Store.Snapshot().FreeCompanies.FirstOrDefault(c => c.FcId == fc);
         return company is not null
             ? $"These records will belong to {company.DisplayName}."
-            : "No Free Company is selected at the top of the window, so these records will only appear in the combined view.";
+            : "No Free Company has been seen yet, so these records will only appear when all Free Companies are shown.";
     }
 
     private void DrawImport(UiAssets assets)
@@ -247,7 +285,7 @@ internal sealed class ManualRecordsSection
 
         var batchId = Guid.NewGuid().ToString("N");
         var source = sourceName;
-        var entries = HistoryImportPlanner.ToEntries(plan, plugin.Store, plugin.ManualEntryFreeCompany(), source, batchId);
+        var entries = HistoryImportPlanner.ToEntries(plan, plugin.Store, TargetCompany(), source, batchId);
         var counted = plan.CountedDays;
         var gil = plan.CountedGil;
         var overlap = plan.OverlapDays;
@@ -425,7 +463,7 @@ internal sealed class ManualRecordsSection
         }
 
         correctionError = string.Empty;
-        var entry = plugin.Store.NewEntry(LedgerEntryKind.Adjustment, date, gil, plugin.ManualEntryFreeCompany(), correctionNote.Trim(), "Entered by hand");
+        var entry = plugin.Store.NewEntry(LedgerEntryKind.Adjustment, date, gil, TargetCompany(), correctionNote.Trim(), "Entered by hand");
         plugin.Worker.Enqueue("Add correction", () =>
         {
             plugin.Store.AddEntries([entry]);
