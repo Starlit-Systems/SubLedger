@@ -29,13 +29,18 @@ public sealed class FarmingPeriod
     public const string DefaultRoutes = "OJ, JORZ";
 
     private readonly Dictionary<ulong, DateOnly> starts;
+    private readonly Dictionary<(ulong Fc, uint Sub), DateOnly> subStarts;
 
-    private FarmingPeriod(FarmingStart rule, Dictionary<ulong, DateOnly> starts, IReadOnlyList<string> routes)
+    private FarmingPeriod(FarmingStart rule, Dictionary<ulong, DateOnly> starts, Dictionary<(ulong, uint), DateOnly> subStarts, IReadOnlyList<string> routes)
     {
         Rule = rule;
         this.starts = starts;
+        this.subStarts = subStarts;
         Routes = routes;
     }
+
+    /// <summary>Each submarine's first voyage on a farming route, by Free Company and submarine.</summary>
+    public IReadOnlyDictionary<(ulong Fc, uint Sub), DateOnly> SubmarineStarts => subStarts;
 
     public FarmingStart Rule { get; }
 
@@ -93,7 +98,20 @@ public sealed class FarmingPeriod
                 starts[fcId] = date;
         }
 
-        return new FarmingPeriod(rule, starts, wanted);
+        return new FarmingPeriod(rule, starts, firstBySub, wanted);
+    }
+
+    /// <summary>
+    /// Whether a voyage counts. Counting from the first submarine, each submarine counts only from its own first
+    /// farming voyage, so the others' levelling voyages stay out until they join. Counting from the whole fleet,
+    /// every voyage from the Free Company's start counts.
+    /// </summary>
+    public bool Covers(Voyage voyage, DateOnly date)
+    {
+        if (Rule == FarmingStart.FirstSubmarine)
+            return subStarts.TryGetValue((voyage.FcId, voyage.SubRegister), out var start) && date >= start;
+
+        return Covers(voyage.FcId, date);
     }
 
     /// <summary>The earliest start among the chosen Free Companies, or null if none of them has farmed.</summary>
@@ -109,7 +127,10 @@ public sealed class FarmingPeriod
         return first;
     }
 
-    /// <summary>Whether a record from this Free Company on this day falls inside its farming period.</summary>
+    /// <summary>
+    /// Whether a record from this Free Company on this day falls inside its farming period. Hand-kept totals have no
+    /// submarine, so they count from the Free Company's start under either rule.
+    /// </summary>
     public bool Covers(ulong fcId, DateOnly date)
     {
         if (starts.TryGetValue(fcId, out var start))
@@ -122,6 +143,6 @@ public sealed class FarmingPeriod
     /// <summary>The voyages and entries that fall inside the farming period.</summary>
     public (List<Voyage> Voyages, List<LedgerEntry> Entries) Apply(
         IEnumerable<Voyage> voyages, IEnumerable<LedgerEntry> entries, BusinessCalendar calendar)
-        => ([.. voyages.Where(v => Covers(v.FcId, calendar.DateOf(v.CollectedUnix)))],
+        => ([.. voyages.Where(v => Covers(v, calendar.DateOf(v.CollectedUnix)))],
             [.. entries.Where(e => Covers(e.FcId, e.BusinessDate))]);
 }

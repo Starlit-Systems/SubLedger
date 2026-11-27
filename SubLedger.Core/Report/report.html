@@ -261,6 +261,10 @@ footer { color: var(--text-3); font-size: 12.5px; margin-top: 26px; border-top: 
     return fc < 0 && starts.size > 0 && day >= Math.min(...starts.values());
   };
   const farmingView = () => farmStarts() !== null;
+  // Counting from the first submarine, each submarine counts only from its own first farming voyage, so the others'
+  // levelling voyages stay out until they join.
+  const subFarmStarts = new Map((farming.firstSubs || []).map(([s, d]) => [s, toNum(d)]));
+  const voyageOk = (v) => state.preset === "farmfirst" ? subFarmStarts.has(v.sub) && v.day >= subFarmStarts.get(v.sub) : farmOk(v.fc, v.day);
 
   // ---------- state ----------
   const state = {
@@ -291,7 +295,7 @@ footer { color: var(--text-3); font-size: 12.5px; margin-top: 26px; border-top: 
     const get = (d) => { let x = days.get(d); if (!x) { x = { day: d, cap: 0, voy: 0, man: 0, excl: 0, adj: 0, hasMan: false }; days.set(d, x); } return x; };
     const voyageDays = new Set(), anyDays = new Set();
     for (const v of voyages) {
-      if (!inFc(v.fc) || (farmOnly && !farmOk(v.fc, v.day))) continue;
+      if (!inFc(v.fc) || (farmOnly && !voyageOk(v))) continue;
       voyageDays.add(v.fc + ":" + v.day); anyDays.add(v.day);
       const x = get(v.day); x.cap += v.gil; x.voy++;
     }
@@ -380,7 +384,7 @@ footer { color: var(--text-3); font-size: 12.5px; margin-top: 26px; border-top: 
     const recordedCovered = coveredOk ? inRange.filter((x) => x.day >= covered[0] && x.day <= covered[1]).length : 0;
     const total = inRange.reduce((s, x) => s + x.income, 0);
     const incomes = inRange.map((x) => x.income).sort((a, b) => a - b);
-    const rangeVoyages = voyages.filter((v) => inFc(v.fc) && v.day >= from && v.day <= to && keep(v));
+    const rangeVoyages = voyages.filter((v) => inFc(v.fc) && v.day >= from && v.day <= to && (!farmOnly || voyageOk(v)));
     const best = inRange.reduce((b, x) => (!b || x.income > b.income ? x : b), null);
     const worst = inRange.reduce((b, x) => (!b || x.income < b.income ? x : b), null);
 
@@ -745,7 +749,7 @@ footer { color: var(--text-3); font-size: 12.5px; margin-top: 26px; border-top: 
       const routes = esc(farming.routes || "a farming route");
       const rule = state.preset === "farmall"
         ? `the first day all of its submarines had come back from ${routes}`
-        : `the first day one of its submarines came back from ${routes}`;
+        : `the first day one of its submarines came back from ${routes}, and each submarine only from its own first farming voyage`;
       farmNote = `<div class="card"><h2>Farming days only</h2><p class="note" style="margin-bottom:0">Each Free Company counts from ${rule}${when.length ? ": " + esc(when.join(", ")) : ""}. Levelling voyages before that are left out of every figure on this page except payback, which covers everything.</p></div>`;
     }
 

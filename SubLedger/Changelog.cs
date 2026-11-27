@@ -10,6 +10,10 @@ internal static class Changelog
 {
     public static readonly IReadOnlyList<ChangelogEntry> Entries =
     [
+        new("0.7.1.0", new DateOnly(2026, 11, 26),
+        [
+            "\"Farming: first sub\" now counts each submarine only from its own first OJ or JORZ voyage, so submarines still levelling while another farms are left out until they start farming too",
+        ]),
         new("0.7.0.0", new DateOnly(2026, 11, 26),
         [
             "Two new Reports ranges leave the levelling weeks out of the averages: \"Farming: first sub\" counts from the first day one of your submarines came back from OJ or JORZ, and \"Farming: all subs\" from the first day all of them had",

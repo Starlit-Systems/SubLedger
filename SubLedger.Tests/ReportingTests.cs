@@ -387,7 +387,7 @@ public class HtmlReportTests
         var html = SubLedger.Core.Report.HtmlReport.Build(snapshot, calendar, new FakeSectors(), today, start, "1.2.3.4", null, DateTimeOffset.UnixEpoch);
 
         var day = today.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
-        Assert.Contains($"\"farming\":{{\"routes\":\"OJ or JORZ\",\"first\":[[0,\"{day}\"]],\"all\":[[0,\"{day}\"]]}}", html);
+        Assert.Contains($"\"farming\":{{\"routes\":\"OJ or JORZ\",\"first\":[[0,\"{day}\"]],\"all\":[[0,\"{day}\"]],\"firstSubs\":[[0,\"{day}\"]]}}", html);
         Assert.Contains("\"preset\":\"farmall\"", html);
     }
 }

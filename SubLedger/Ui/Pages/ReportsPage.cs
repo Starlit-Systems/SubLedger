@@ -122,7 +122,7 @@ internal sealed class ReportsPage
         cacheKey = key;
         report = LedgerReports.Build(snapshot.Voyages, snapshot.Entries, calendar, range, grouping, today, fc, farming);
         voyagesInRange = [.. snapshot.Voyages.Where(v => fc.Includes(v.FcId) && range.Contains(calendar.DateOf(v.CollectedUnix))
-            && (farming is null || farming.Covers(v.FcId, calendar.DateOf(v.CollectedUnix))))];
+            && (farming is null || farming.Covers(v, calendar.DateOf(v.CollectedUnix))))];
 
         // Each Free Company in view on its own, when there is more than one to compare.
         companies = [];
@@ -222,7 +222,7 @@ internal sealed class ReportsPage
             }
 
             if (option == RangePreset.FarmingFirstSub)
-                Widgets.Tooltip($"From the first day one of your submarines came back from {RouteWords()}, so the levelling days before it are left out.");
+                Widgets.Tooltip($"Each submarine counts only from its own first voyage on {RouteWords()}, so levelling voyages are left out, including those of submarines still levelling while another farms.");
             else if (option == RangePreset.FarmingAllSubs)
                 Widgets.Tooltip($"From the first day all of your submarines had come back from {RouteWords()}, so the levelling days before it are left out.\nA submarine that has never run one is not waited for.");
 
@@ -310,7 +310,7 @@ internal sealed class ReportsPage
         var starts = farming.Starts.Where(kv => kv.Key != 0 && scope.Includes(kv.Key)).OrderBy(kv => kv.Value).ToList();
         var rule = farming.Rule == FarmingStart.WholeFleet
             ? $"the first day all of the submarines had come back from {RouteWords()}"
-            : $"the first day a submarine came back from {RouteWords()}";
+            : $"the first day a submarine came back from {RouteWords()}, each submarine only from its own first farming voyage";
 
         if (starts.Count == 0)
             return farming.IsEmpty

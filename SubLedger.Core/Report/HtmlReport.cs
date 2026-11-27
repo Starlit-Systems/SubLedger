@@ -117,6 +117,12 @@ public static class HtmlReport
             .ToList();
         var farmingRoutes = (start.FarmingFirstSub ?? start.FarmingAllSubs)?.Routes ?? [];
 
+        // Counting from the first submarine, each submarine counts from its own first farming voyage.
+        var subStarts = (start.FarmingFirstSub?.SubmarineStarts ?? new Dictionary<(ulong Fc, uint Sub), DateOnly>())
+            .Where(kv => subIndex.ContainsKey(kv.Key))
+            .Select(kv => new object[] { subIndex[kv.Key], kv.Value.ToString("yyyy-MM-dd", Inv) })
+            .ToList();
+
         var cutoff = TimeSpan.FromMinutes(calendar.CutoffMinutes);
         var data = new
         {
@@ -139,6 +145,7 @@ public static class HtmlReport
                 routes = string.Join(" or ", farmingRoutes),
                 first = StartsOf(start.FarmingFirstSub),
                 all = StartsOf(start.FarmingAllSubs),
+                firstSubs = subStarts,
             },
             companies = companies.Select(c => new { id = c.Id.ToString("X16", Inv), name = c.Name }),
             subs = subs.Select(s => new { fc = s.Fc, name = s.Name }),

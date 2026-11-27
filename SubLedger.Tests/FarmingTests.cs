@@ -72,11 +72,23 @@ public class FarmingTests
         var report = LedgerReports.Build(Fleet, [], Utc, range, PeriodGrouping.Day, Today, farming: farming);
 
         Assert.Equal(new DateOnly(2026, 5, 5), range.From);
-        Assert.Equal(lifetime.TotalGil - 2_000, report.TotalGil);
-        Assert.Equal(6, report.Voyages);
+        // Sub 1 from the 5th, sub 2 only from its own first JORZ voyage on the 9th: its levelling on the 6th is out.
+        Assert.Equal(lifetime.TotalGil - 4_000, report.TotalGil);
+        Assert.Equal(600_000, report.TotalGil);
+        Assert.Equal(5, report.Voyages);
         Assert.Equal(16, report.Covered!.Value.Days);
         Assert.Equal(report.TotalGil / 16, report.AveragePerDay);
         Assert.True(report.AveragePerDay > lifetime.AveragePerDay);
+    }
+
+    [Fact]
+    public void Counting_from_the_first_submarine_leaves_out_the_others_until_they_farm_too()
+    {
+        var farming = FarmingPeriod.Detect(Fleet, Utc, Routes, FarmingStart.FirstSubmarine);
+
+        Assert.True(farming.Covers(Fleet[2], new DateOnly(2026, 5, 5)));    // sub 1 on OJ
+        Assert.False(farming.Covers(Fleet[3], new DateOnly(2026, 5, 6)));   // sub 2 still levelling
+        Assert.True(farming.Covers(Fleet[5], new DateOnly(2026, 5, 9)));    // sub 2's first JORZ
     }
 
     [Fact]
@@ -104,6 +116,6 @@ public class FarmingTests
 
         var report = LedgerReports.Build(Fleet, entries, Utc, new DateRange(new DateOnly(2026, 5, 1), Today), PeriodGrouping.Day, Today, farming: farming);
 
-        Assert.Equal(100_000 + 2_000 + 120_000 + 100_000 + 150_000 + 100_000 + 150_000, report.TotalGil);
+        Assert.Equal(100_000 + 120_000 + 100_000 + 150_000 + 100_000 + 150_000, report.TotalGil);
     }
 }
