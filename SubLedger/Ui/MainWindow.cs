@@ -190,7 +190,7 @@ internal sealed class MainWindow : Window
     /// </summary>
     private void DrawFreeCompanyPicker(Vector2 rightEdge, float headerHeight)
     {
-        var companies = plugin.Store.Snapshot().FreeCompanies;
+        var companies = plugin.Counted().FreeCompanies;
         if (companies.Count < 2)
             return;
 

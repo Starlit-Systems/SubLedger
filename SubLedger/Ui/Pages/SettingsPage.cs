@@ -157,7 +157,65 @@ internal sealed class SettingsPage
         Widgets.EndPanel();
         Widgets.VSpace(12f);
 
+        DrawFreeCompanies(assets);
         DrawFarming(assets);
+    }
+
+    /// <summary>Every Free Company the ledger knows, each with a button to leave it out of the figures or bring it back.</summary>
+    private void DrawFreeCompanies(UiAssets assets)
+    {
+        // The full ledger, ignored ones included: this is where they are brought back.
+        var snapshot = plugin.Store.Snapshot();
+        if (snapshot.FreeCompanies.Count == 0)
+            return;
+
+        Widgets.SectionLabel("Free Companies", assets);
+        Widgets.BeginPanel();
+        Widgets.TextWrapped(
+            "Ignore a Free Company whose submarines you run to help out rather than to earn for yourself. Its voyages keep being recorded, "
+            + "but it is left out of every total, average, chart, export and report, and out of the Free Company picker. Bring it back at any time and everything recorded meanwhile counts again. "
+            + "With sync on, your other computers follow.", Theme.TextDim);
+        Widgets.VSpace(4f);
+
+        var inv = CultureInfo.InvariantCulture;
+        var first = true;
+        foreach (var fc in snapshot.FreeCompanies.OrderBy(c => c.Ignored).ThenBy(c => c.DisplayName, StringComparer.OrdinalIgnoreCase))
+        {
+            var voyages = snapshot.Voyages.Where(v => !v.Deleted && v.FcId == fc.FcId).ToList();
+            var gil = voyages.Sum(v => v.TotalGil);
+            var recorded = $"{voyages.Count.ToString("N0", inv)} {(voyages.Count == 1 ? "voyage" : "voyages")}, {Core.GilFormat.Exact(gil)} gil recorded";
+            var description = fc.Ignored
+                ? $"Ignored: still recording ({recorded}), but left out of every figure."
+                : $"Counted. {recorded}.";
+            var label = fc.Ignored ? "Count it again" : "Ignore";
+            var width = ImGui.CalcTextSize(label).X + Theme.S(52f);
+
+            if (!first)
+                Widgets.PanelDivider();
+            first = false;
+
+            ImGui.PushID(fc.FcId.ToString(inv));
+            Widgets.SettingRow(fc.DisplayName, description, width, ImGui.GetFrameHeight(), () =>
+            {
+                var icon = fc.Ignored ? FontAwesomeIcon.Eye : FontAwesomeIcon.EyeSlash;
+                if (Widgets.Button(label, icon, fc.Ignored ? Widgets.ButtonKind.Primary : Widgets.ButtonKind.Secondary))
+                {
+                    var id = fc.FcId;
+                    var ignore = !fc.Ignored;
+                    plugin.Worker.Enqueue(ignore ? "Ignore Free Company" : "Count Free Company", () =>
+                    {
+                        if (plugin.Store.SetFreeCompanyIgnored(id, ignore))
+                            plugin.Log.Info("Ledger", ignore
+                                ? $"{fc.DisplayName} is now ignored: still recorded, left out of every figure."
+                                : $"{fc.DisplayName} counts again.");
+                    });
+                }
+            });
+            ImGui.PopID();
+        }
+
+        Widgets.EndPanel();
+        Widgets.VSpace(12f);
     }
 
     private void DrawFarming(UiAssets assets)
@@ -190,7 +248,7 @@ internal sealed class SettingsPage
         }
         else
         {
-            var names = plugin.Store.Snapshot().FreeCompanies.ToDictionary(c => c.FcId, c => c.DisplayName);
+            var names = plugin.Counted().FreeCompanies.ToDictionary(c => c.FcId, c => c.DisplayName);
             foreach (var (fcId, date) in first.Starts.OrderBy(kv => kv.Value))
             {
                 var name = fcId == 0 ? "Submarines with no Free Company" : names.GetValueOrDefault(fcId, "Free Company");

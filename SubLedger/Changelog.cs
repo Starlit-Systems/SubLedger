@@ -10,6 +10,12 @@ internal static class Changelog
 {
     public static readonly IReadOnlyList<ChangelogEntry> Entries =
     [
+        new("0.8.0.0", new DateOnly(2026, 11, 26),
+        [
+            "Ignore a Free Company under Settings, General: for one whose submarines you run to help out rather than to earn for yourself",
+            "An ignored Free Company keeps being recorded, but is left out of every total, average, chart, export and the HTML report, and out of the Free Company picker",
+            "Count it again at any time and everything recorded meanwhile is back in the figures. With sync on, your other computers follow the choice",
+        ]),
         new("0.7.1.0", new DateOnly(2026, 11, 26),
         [
             "\"Farming: first sub\" now counts each submarine only from its own first OJ or JORZ voyage, so submarines still levelling while another farms are left out until they start farming too",

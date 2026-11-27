@@ -77,7 +77,7 @@ internal sealed class ReportsPage
     {
         var calendar = plugin.Calendar;
         var today = calendar.Today(DateTimeOffset.Now);
-        var snapshot = plugin.Store.Snapshot();
+        var snapshot = plugin.Counted();
         var fc = plugin.Scope;
         farming = RangePresets.FarmingRule(preset) is { } rule ? plugin.Farming(rule) : null;
 
@@ -155,7 +155,7 @@ internal sealed class ReportsPage
     {
         Refresh();
         var assets = plugin.Assets;
-        var snapshot = plugin.Store.Snapshot();
+        var snapshot = plugin.Counted();
         var scope = plugin.ScopeLabel();
         Widgets.PageHeader("Reports", $"{scope} · {report.Range} · {report.Range.Days} {(report.Range.Days == 1 ? "day" : "days")}", assets);
 
@@ -306,7 +306,7 @@ internal sealed class ReportsPage
             return string.Empty;
 
         var scope = plugin.Scope;
-        var names = plugin.Store.Snapshot().FreeCompanies.ToDictionary(c => c.FcId, c => c.DisplayName);
+        var names = plugin.Counted().FreeCompanies.ToDictionary(c => c.FcId, c => c.DisplayName);
         var starts = farming.Starts.Where(kv => kv.Key != 0 && scope.Includes(kv.Key)).OrderBy(kv => kv.Value).ToList();
         var rule = farming.Rule == FarmingStart.WholeFleet
             ? $"the first day all of the submarines had come back from {RouteWords()}"

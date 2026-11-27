@@ -52,7 +52,7 @@ internal sealed class ExpensesPage
     {
         var calendar = plugin.Calendar;
         var today = calendar.Today(DateTimeOffset.Now);
-        var snapshot = plugin.Store.Snapshot();
+        var snapshot = plugin.Counted();
         var fc = plugin.Scope;
         var key = (snapshot.Version, fc, calendar.Zone.Id, calendar.CutoffMinutes, today);
         if (key == cacheKey)
@@ -421,7 +421,7 @@ internal sealed class ExpensesPage
         ImGui.AlignTextToFramePadding();
         Widgets.Text("When it was bought. A rough date is fine.", Theme.TextDim);
 
-        var companies = plugin.Store.Snapshot().FreeCompanies;
+        var companies = plugin.Counted().FreeCompanies;
         if (companies.Count > 1)
         {
             if (formFc == 0 || companies.All(c => c.FcId != formFc))
@@ -527,7 +527,7 @@ internal sealed class ExpensesPage
 
         Widgets.SectionLabel("Everything entered", assets);
         Widgets.BeginPanel();
-        var companies = plugin.Store.Snapshot().FreeCompanies;
+        var companies = plugin.Counted().FreeCompanies;
         var showCompany = companies.Count > 1 && plugin.Scope.Single == 0;
 
         for (var i = 0; i < costs.Count; i++)

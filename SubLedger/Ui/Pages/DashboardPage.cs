@@ -50,7 +50,7 @@ internal sealed class DashboardPage
     {
         var calendar = plugin.Calendar;
         var today = calendar.Today(DateTimeOffset.Now);
-        var snapshot = plugin.Store.Snapshot();
+        var snapshot = plugin.Counted();
         var fc = plugin.Scope;
         var key = (snapshot.Version, fc, calendar.Zone.Id, calendar.CutoffMinutes, today);
         if (key == cacheKey)
@@ -95,7 +95,7 @@ internal sealed class DashboardPage
     {
         Refresh();
         var assets = plugin.Assets;
-        var snapshot = plugin.Store.Snapshot();
+        var snapshot = plugin.Counted();
         var scope = plugin.ScopeLabel();
 
         Widgets.PageHeader("Dashboard", $"{scope} · income counts on the day it was collected", assets);

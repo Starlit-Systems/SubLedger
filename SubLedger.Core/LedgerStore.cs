@@ -397,6 +397,25 @@ public sealed class LedgerStore
         }
     }
 
+    /// <summary>
+    /// Leaves a Free Company out of every figure, or brings it back. Its voyages keep being recorded either way, and
+    /// the choice travels to other computers through sync.
+    /// </summary>
+    public bool SetFreeCompanyIgnored(ulong fcId, bool ignored)
+    {
+        lock (gate)
+        {
+            if (!freeCompanies.TryGetValue(fcId, out var fc) || fc.Ignored == ignored)
+                return false;
+
+            fc.Ignored = ignored;
+            fc.IgnoredChangedUnix = Now();
+            db.UpsertFreeCompanies([fc], deviceId, fc.IgnoredChangedUnix);
+            Touch();
+            return true;
+        }
+    }
+
     public bool ObserveCharacter(ulong contentId, string name, string world, ulong fcId, long nowUnix)
     {
         if (contentId == 0)
@@ -637,10 +656,21 @@ public sealed class LedgerStore
                         World = incoming.World,
                         FirstSeenUnix = incoming.FirstSeenUnix,
                         LastSeenUnix = incoming.LastSeenUnix,
+                        Ignored = incoming.Ignored,
+                        IgnoredChangedUnix = incoming.IgnoredChangedUnix,
                     };
                     freeCompanies[known.FcId] = known;
                     changedCompanies.Add(known);
                     continue;
+                }
+
+                // Ignoring has its own clock, so seeing the Free Company again elsewhere cannot undo a newer choice.
+                var ignoreChanged = false;
+                if (incoming.IgnoredChangedUnix > known.IgnoredChangedUnix)
+                {
+                    ignoreChanged = true;
+                    known.Ignored = incoming.Ignored;
+                    known.IgnoredChangedUnix = incoming.IgnoredChangedUnix;
                 }
 
                 // The computer that saw the Free Company most recently knows its current name.
@@ -651,7 +681,7 @@ public sealed class LedgerStore
                 if (!string.IsNullOrWhiteSpace(incoming.World) && (newer || string.IsNullOrWhiteSpace(known.World)) && known.World != incoming.World) { known.World = incoming.World; changed = true; }
                 if (newer)
                     known.LastSeenUnix = incoming.LastSeenUnix;
-                if (changed)
+                if (changed || ignoreChanged)
                     changedCompanies.Add(known);
             }
 

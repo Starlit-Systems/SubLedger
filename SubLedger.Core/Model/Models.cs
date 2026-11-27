@@ -60,6 +60,15 @@ public sealed class FreeCompany
     public long FirstSeenUnix { get; set; }
     public long LastSeenUnix { get; set; }
 
+    /// <summary>
+    /// Still recorded, but left out of every figure: a Free Company whose submarines the user runs to help out rather
+    /// than to earn for themselves.
+    /// </summary>
+    public bool Ignored { get; set; }
+
+    /// <summary>When <see cref="Ignored"/> last changed, so the latest choice wins when computers sync.</summary>
+    public long IgnoredChangedUnix { get; set; }
+
     public string DisplayName
     {
         get

@@ -93,6 +93,26 @@ public sealed class LedgerDatabase
             Exec(conn, tx, "PRAGMA user_version = 1;");
             tx.Commit();
         }
+
+        // Added in 0.8: whether a Free Company is left out of the figures. Older versions read the table by naming
+        // its columns, so the extra ones do not trouble them, and the layout number stays the same.
+        if (!HasColumn(conn, "free_companies", "ignored"))
+        {
+            using var tx = conn.BeginTransaction();
+            Exec(conn, tx, """
+                ALTER TABLE free_companies ADD COLUMN ignored INTEGER NOT NULL DEFAULT 0;
+                ALTER TABLE free_companies ADD COLUMN ignored_changed_unix INTEGER NOT NULL DEFAULT 0;
+                """);
+            tx.Commit();
+        }
+    }
+
+    private static bool HasColumn(SqliteConnection conn, string table, string column)
+    {
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = $"SELECT COUNT(*) FROM pragma_table_info('{table}') WHERE name = $column;";
+        cmd.Parameters.AddWithValue("$column", column);
+        return Convert.ToInt64(cmd.ExecuteScalar(), CultureInfo.InvariantCulture) > 0;
     }
 
     private const string SchemaV1 = """
@@ -228,9 +248,13 @@ public sealed class LedgerDatabase
         using var conn = Open();
         var data = new LedgerData([], [], [], [], []);
 
+        // Another computer's file from an older version has no ignore columns.
+        var hasIgnore = HasColumn(conn, "free_companies", "ignored");
         using (var cmd = conn.CreateCommand())
         {
-            cmd.CommandText = "SELECT fc_id, name, tag, world, first_seen_unix, last_seen_unix FROM free_companies;";
+            cmd.CommandText = hasIgnore
+                ? "SELECT fc_id, name, tag, world, first_seen_unix, last_seen_unix, ignored, ignored_changed_unix FROM free_companies;"
+                : "SELECT fc_id, name, tag, world, first_seen_unix, last_seen_unix FROM free_companies;";
             using var r = cmd.ExecuteReader();
             while (r.Read())
             {
@@ -242,6 +266,8 @@ public sealed class LedgerDatabase
                     World = r.GetString(3),
                     FirstSeenUnix = r.GetInt64(4),
                     LastSeenUnix = r.GetInt64(5),
+                    Ignored = hasIgnore && r.GetInt64(6) != 0,
+                    IgnoredChangedUnix = hasIgnore ? r.GetInt64(7) : 0,
                 });
             }
         }
@@ -472,14 +498,14 @@ public sealed class LedgerDatabase
         using var cmd = conn.CreateCommand();
         cmd.Transaction = tx;
         cmd.CommandText = """
-            INSERT INTO free_companies (fc_id, name, tag, world, first_seen_unix, last_seen_unix, updated_unix, device_id)
-            VALUES ($id, $name, $tag, $world, $first, $last, $updated, $device)
+            INSERT INTO free_companies (fc_id, name, tag, world, first_seen_unix, last_seen_unix, updated_unix, device_id, ignored, ignored_changed_unix)
+            VALUES ($id, $name, $tag, $world, $first, $last, $updated, $device, $ignored, $ignoredAt)
             ON CONFLICT (fc_id) DO UPDATE SET
                 name = excluded.name, tag = excluded.tag, world = excluded.world,
                 last_seen_unix = excluded.last_seen_unix, updated_unix = excluded.updated_unix,
-                device_id = excluded.device_id;
+                device_id = excluded.device_id, ignored = excluded.ignored, ignored_changed_unix = excluded.ignored_changed_unix;
             """;
-        var p = AddParameters(cmd, "$id", "$name", "$tag", "$world", "$first", "$last", "$updated", "$device");
+        var p = AddParameters(cmd, "$id", "$name", "$tag", "$world", "$first", "$last", "$updated", "$device", "$ignored", "$ignoredAt");
         foreach (var fc in companies)
         {
             p[0].Value = ToI64(fc.FcId);
@@ -490,6 +516,8 @@ public sealed class LedgerDatabase
             p[5].Value = fc.LastSeenUnix;
             p[6].Value = nowUnix;
             p[7].Value = deviceId;
+            p[8].Value = fc.Ignored ? 1 : 0;
+            p[9].Value = fc.IgnoredChangedUnix;
             cmd.ExecuteNonQuery();
         }
 

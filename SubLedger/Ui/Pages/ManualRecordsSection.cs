@@ -46,7 +46,7 @@ internal sealed class ManualRecordsSection
 
     private void RefreshPlan()
     {
-        var snapshot = plugin.Store.Snapshot();
+        var snapshot = plugin.Counted();
         var fc = TargetCompany();
         var key = (listText, startText, snapshot.Version, fc);
         if (key == planKey)
@@ -77,7 +77,7 @@ internal sealed class ManualRecordsSection
     /// <summary>The Free Company new records go to: the one picked here, or the one in view, or the only one.</summary>
     private ulong TargetCompany()
     {
-        var companies = plugin.Store.Snapshot().FreeCompanies;
+        var companies = plugin.Counted().FreeCompanies;
         if (companies.Count < 2)
             return companies.Count == 1 ? companies[0].FcId : 0;
         if (chosenFc == 0 || companies.All(c => c.FcId != chosenFc))
@@ -89,7 +89,7 @@ internal sealed class ManualRecordsSection
     {
         RefreshPlan();
 
-        var companies = plugin.Store.Snapshot().FreeCompanies;
+        var companies = plugin.Counted().FreeCompanies;
         if (companies.Count > 1)
         {
             var target = TargetCompany();
@@ -122,7 +122,7 @@ internal sealed class ManualRecordsSection
     private string CompanyNote()
     {
         var fc = TargetCompany();
-        var company = plugin.Store.Snapshot().FreeCompanies.FirstOrDefault(c => c.FcId == fc);
+        var company = plugin.Counted().FreeCompanies.FirstOrDefault(c => c.FcId == fc);
         return company is not null
             ? $"These records will belong to {company.DisplayName}."
             : "No Free Company has been seen yet, so these records will only appear when all Free Companies are shown.";
@@ -330,7 +330,7 @@ internal sealed class ManualRecordsSection
 
     private void DrawBatches(UiAssets assets)
     {
-        var batches = plugin.Store.Snapshot().Entries
+        var batches = plugin.Counted().Entries
             .Where(e => e.Kind == LedgerEntryKind.HistoricalDay && e.BatchId.Length > 0)
             .GroupBy(e => e.BatchId)
             .Select(g => (Id: g.Key, Source: g.First().Source, Count: g.Count(), Gil: g.Sum(e => e.AmountGil),
@@ -408,7 +408,7 @@ internal sealed class ManualRecordsSection
         if (!string.IsNullOrEmpty(correctionError))
             Widgets.Text(correctionError, Theme.Rose);
 
-        var corrections = plugin.Store.Snapshot().Entries
+        var corrections = plugin.Counted().Entries
             .Where(e => e.Kind == LedgerEntryKind.Adjustment)
             .OrderByDescending(e => e.BusinessDate).ThenByDescending(e => e.CreatedUnix)
             .ToList();

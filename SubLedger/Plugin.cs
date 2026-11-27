@@ -295,7 +295,7 @@ public sealed class Plugin : IDalamudPlugin
 
     private ExportContext NewExportContext()
     {
-        var names = Store.Snapshot().FreeCompanies.ToDictionary(c => c.FcId, c => c.DisplayName);
+        var names = Counted().FreeCompanies.ToDictionary(c => c.FcId, c => c.DisplayName);
         return new ExportContext(Calendar, names, Sectors, Version);
     }
 
@@ -313,7 +313,7 @@ public sealed class Plugin : IDalamudPlugin
             File.WriteAllText(Path.Combine(ExportDirectory, ExportName(report.Range, "items.csv")), LedgerExport.LootCsv(voyages, context), utf8);
             File.WriteAllText(Path.Combine(ExportDirectory, ExportName(report.Range, "daily.csv")), LedgerExport.DailyCsv(days, report.Range), utf8);
             var scope = Scope;
-            var costs = Store.Snapshot().Entries.Where(e => ExpenseCategories.IsCost(e.Kind) && report.Range.Contains(e.BusinessDate) && scope.Includes(e.FcId)).ToList();
+            var costs = Counted().Entries.Where(e => ExpenseCategories.IsCost(e.Kind) && report.Range.Contains(e.BusinessDate) && scope.Includes(e.FcId)).ToList();
             if (costs.Count == 0)
                 return $"Three spreadsheet files written to {ExportDirectory}";
 
@@ -327,7 +327,7 @@ public sealed class Plugin : IDalamudPlugin
         {
             var name = ExportName(report.Range, "data.json");
             var scope = Scope;
-            var costs = Store.Snapshot().Entries.Where(e => scope.Includes(e.FcId));
+            var costs = Counted().Entries.Where(e => scope.Includes(e.FcId));
             File.WriteAllText(Path.Combine(ExportDirectory, name), LedgerExport.Json(report, voyages, days, NewExportContext(), DateTimeOffset.UtcNow, costs), new UTF8Encoding(false));
             return $"{name} written to {ExportDirectory}";
         });
@@ -378,7 +378,7 @@ public sealed class Plugin : IDalamudPlugin
                 Log.Debug("Export", $"Report logo not found: {ex.Message}");
             }
 
-            var html = HtmlReport.Build(Store.Snapshot(), calendar, Sectors, today, new ReportStart(range, preset, grouping, Scope, farmingFirst, farmingAll), Version, logo, DateTimeOffset.Now);
+            var html = HtmlReport.Build(Counted(), calendar, Sectors, today, new ReportStart(range, preset, grouping, Scope, farmingFirst, farmingAll), Version, logo, DateTimeOffset.Now);
             var name = $"SubLedger report {today:yyyy-MM-dd}.html";
             var path = Path.Combine(ExportDirectory, name);
             File.WriteAllText(path, html, new UTF8Encoding(false));
@@ -397,7 +397,7 @@ public sealed class Plugin : IDalamudPlugin
     /// </summary>
     public FarmingPeriod Farming(FarmingStart rule)
     {
-        var snapshot = Store.Snapshot();
+        var snapshot = Counted();
         var calendar = Calendar;
         var key = (snapshot.Version, Config.FarmingRoutes, calendar.Zone.Id, calendar.CutoffMinutes);
         if (farmingFirstSub is null || farmingAllSubs is null || key != farmingKey)
@@ -409,6 +409,31 @@ public sealed class Plugin : IDalamudPlugin
         }
 
         return rule == FarmingStart.WholeFleet ? farmingAllSubs : farmingFirstSub;
+    }
+
+    private LedgerSnapshot? counted;
+
+    /// <summary>
+    /// The ledger as every figure sees it: Free Companies the user has chosen to ignore are left out, with their
+    /// voyages, submarines and entries, though all of it stays recorded. Same version number as the full snapshot, so
+    /// anything cached on that number follows ignore changes too.
+    /// </summary>
+    public LedgerSnapshot Counted()
+    {
+        var snapshot = Store.Snapshot();
+        if (counted is not null && counted.Version == snapshot.Version)
+            return counted;
+
+        var ignored = snapshot.FreeCompanies.Where(c => c.Ignored).Select(c => c.FcId).ToHashSet();
+        return counted = ignored.Count == 0
+            ? snapshot
+            : snapshot with
+            {
+                Voyages = [.. snapshot.Voyages.Where(v => !ignored.Contains(v.FcId))],
+                FreeCompanies = [.. snapshot.FreeCompanies.Where(c => !c.Ignored)],
+                Submarines = [.. snapshot.Submarines.Where(s => !ignored.Contains(s.FcId))],
+                Entries = [.. snapshot.Entries.Where(e => !ignored.Contains(e.FcId))],
+            };
     }
 
     public void OpenExportFolder()
@@ -432,7 +457,7 @@ public sealed class Plugin : IDalamudPlugin
     {
         get
         {
-            var known = Store.Snapshot().FreeCompanies.Select(c => c.FcId).ToHashSet();
+            var known = Counted().FreeCompanies.Select(c => c.FcId).ToHashSet();
             var chosen = Config.SelectedFreeCompanies.Where(known.Contains).Distinct().ToList();
             return chosen.Count == 0 || chosen.Count == known.Count ? FcFilter.All : FcFilter.Of(chosen);
         }
@@ -448,13 +473,13 @@ public sealed class Plugin : IDalamudPlugin
     public List<FreeCompany> CompaniesInScope()
     {
         var scope = Scope;
-        return [.. Store.Snapshot().FreeCompanies.Where(c => scope.Includes(c.FcId))];
+        return [.. Counted().FreeCompanies.Where(c => scope.Includes(c.FcId))];
     }
 
     /// <summary>Short words for what the window is showing: "Starlit (Golem)", "All Free Companies combined", "2 Free Companies".</summary>
     public string ScopeLabel()
     {
-        var all = Store.Snapshot().FreeCompanies;
+        var all = Counted().FreeCompanies;
         var shown = CompaniesInScope();
         if (all.Count == 0)
             return "Your submarines";
@@ -470,7 +495,7 @@ public sealed class Plugin : IDalamudPlugin
         if (single != 0)
             return single;
 
-        var companies = Store.Snapshot().FreeCompanies;
+        var companies = Counted().FreeCompanies;
         return companies.Count == 1 ? companies[0].FcId : 0;
     }
 

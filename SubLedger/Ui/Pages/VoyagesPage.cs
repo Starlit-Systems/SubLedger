@@ -30,7 +30,7 @@ internal sealed class VoyagesPage
 
     private void Refresh()
     {
-        var snapshot = plugin.Store.Snapshot();
+        var snapshot = plugin.Counted();
         var calendar = plugin.Calendar;
         var key = (snapshot.Version, plugin.Scope, search, calendar.Zone.Id, calendar.CutoffMinutes);
         if (key == cacheKey)
@@ -231,7 +231,7 @@ internal sealed class VoyagesPage
         var calendar = plugin.Calendar;
 
         Widgets.Text(string.IsNullOrEmpty(v.SubName) ? "Submarine" : v.SubName, Theme.Text, assets.Heading);
-        var fc = plugin.Store.Snapshot().FreeCompanies.FirstOrDefault(c => c.FcId == v.FcId);
+        var fc = plugin.Counted().FreeCompanies.FirstOrDefault(c => c.FcId == v.FcId);
         if (fc is not null)
             Widgets.Text(fc.DisplayName, Theme.TextDim);
         Widgets.VSpace(2f);
