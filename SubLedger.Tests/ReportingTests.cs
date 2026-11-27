@@ -370,4 +370,24 @@ public class HtmlReportTests
         Assert.DoesNotContain("src=\"http", html);
         Assert.DoesNotContain("href=\"http", html);
     }
+
+    [Fact]
+    public void The_report_carries_both_farming_starts()
+    {
+        using var ledger = new TempLedger();
+        ledger.Store.ObserveFreeCompany(TempLedger.Fc, "Starlit", "STAR", "Golem", 1);
+        ledger.Store.RecordVoyage(TempLedger.OjHaul(1_780_000_000));
+        var snapshot = ledger.Store.Snapshot();
+        var calendar = new SubLedger.Core.Analytics.BusinessCalendar(TimeZoneInfo.Utc, 0);
+        var today = calendar.DateOf(1_780_000_000);
+        var first = FarmingPeriod.Detect(snapshot.Voyages, calendar, ["OJ", "JORZ"], FarmingStart.FirstSubmarine);
+        var all = FarmingPeriod.Detect(snapshot.Voyages, calendar, ["OJ", "JORZ"], FarmingStart.WholeFleet);
+        var start = new SubLedger.Core.Report.ReportStart(new DateRange(today, today), RangePreset.FarmingAllSubs, PeriodGrouping.Day, FcFilter.All, first, all);
+
+        var html = SubLedger.Core.Report.HtmlReport.Build(snapshot, calendar, new FakeSectors(), today, start, "1.2.3.4", null, DateTimeOffset.UnixEpoch);
+
+        var day = today.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+        Assert.Contains($"\"farming\":{{\"routes\":\"OJ or JORZ\",\"first\":[[0,\"{day}\"]],\"all\":[[0,\"{day}\"]]}}", html);
+        Assert.Contains("\"preset\":\"farmall\"", html);
+    }
 }

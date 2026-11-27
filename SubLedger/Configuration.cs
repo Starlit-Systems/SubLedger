@@ -52,6 +52,9 @@ public sealed class Configuration : IPluginConfiguration
     /// <summary>The Free Companies every page shows; empty shows all of them combined.</summary>
     public List<ulong> SelectedFreeCompanies { get; set; } = [];
 
+    /// <summary>Routes that count as farming rather than levelling, for "Farming lifetime" on the Reports page.</summary>
+    public string FarmingRoutes { get; set; } = SubLedger.Core.Analytics.FarmingPeriod.DefaultRoutes;
+
     /// <summary>The newest version whose notes the user has opened the Updates page for.</summary>
     public string LastSeenChangelog { get; set; } = string.Empty;
 

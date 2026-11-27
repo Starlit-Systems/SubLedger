@@ -245,6 +245,23 @@ footer { color: var(--text-3); font-size: 12.5px; margin-top: 26px; border-top: 
   }));
   const entries = DATA.entries.map((e) => ({ day: toNum(e[0]), fc: e[1], kind: e[2], gil: e[3], category: e[4], note: e[5] }));
 
+  // When each Free Company began farming: the first day one of its submarines came back from a farming route
+  // ("farmfirst"), or the first day all of them had ("farmall"). These presets leave out everything from before, so
+  // the levelling weeks do not drag the averages down.
+  const farming = DATA.farming || { routes: "", first: [], all: [] };
+  const FARM = {
+    farmfirst: new Map((farming.first || []).map(([i, d]) => [i, toNum(d)])),
+    farmall: new Map((farming.all || []).map(([i, d]) => [i, toNum(d)])),
+  };
+  const farmStarts = () => FARM[state.preset] || null;
+  const farmOk = (fc, day) => {
+    const starts = farmStarts();
+    if (!starts) return true;
+    if (starts.has(fc)) return day >= starts.get(fc);
+    return fc < 0 && starts.size > 0 && day >= Math.min(...starts.values());
+  };
+  const farmingView = () => farmStarts() !== null;
+
   // ---------- state ----------
   const state = {
     fcs: DATA.initial.fcs && DATA.initial.fcs.length ? new Set(DATA.initial.fcs) : null,
@@ -269,18 +286,18 @@ footer { color: var(--text-3); font-size: 12.5px; margin-top: 26px; border-top: 
   // ---------- calculations (the same rules as the plugin) ----------
   // Income per ledger day for the chosen Free Company. A hand-kept total gives way to recorded voyages from its own
   // Free Company that day (or from any, when it belongs to none); corrections always count.
-  function daily() {
+  function daily(farmOnly) {
     const days = new Map();
     const get = (d) => { let x = days.get(d); if (!x) { x = { day: d, cap: 0, voy: 0, man: 0, excl: 0, adj: 0, hasMan: false }; days.set(d, x); } return x; };
     const voyageDays = new Set(), anyDays = new Set();
     for (const v of voyages) {
-      if (!inFc(v.fc)) continue;
+      if (!inFc(v.fc) || (farmOnly && !farmOk(v.fc, v.day))) continue;
       voyageDays.add(v.fc + ":" + v.day); anyDays.add(v.day);
       const x = get(v.day); x.cap += v.gil; x.voy++;
     }
     for (const e of entries) {
       if (e.kind !== "hand" && e.kind !== "adj") continue;
-      if (!inFc(e.fc)) continue;
+      if (!inFc(e.fc) || (farmOnly && !farmOk(e.fc, e.day))) continue;
       const x = get(e.day);
       if (e.kind === "hand") {
         const aside = e.fc < 0 ? anyDays.has(e.day) : voyageDays.has(e.fc + ":" + e.day);
@@ -349,7 +366,9 @@ footer { color: var(--text-3); font-size: 12.5px; margin-top: 26px; border-top: 
   }
 
   function compute() {
-    const days = daily();
+    const farmOnly = farmingView();
+    const days = daily(farmOnly);
+    const keep = (x) => !farmOnly || farmOk(x.fc, x.day);
     const keys = [...days.keys()].sort((a, b) => a - b);
     const first = keys.length ? keys[0] : null;
     const from = state.from, to = state.to;
@@ -361,13 +380,13 @@ footer { color: var(--text-3); font-size: 12.5px; margin-top: 26px; border-top: 
     const recordedCovered = coveredOk ? inRange.filter((x) => x.day >= covered[0] && x.day <= covered[1]).length : 0;
     const total = inRange.reduce((s, x) => s + x.income, 0);
     const incomes = inRange.map((x) => x.income).sort((a, b) => a - b);
-    const rangeVoyages = voyages.filter((v) => inFc(v.fc) && v.day >= from && v.day <= to);
+    const rangeVoyages = voyages.filter((v) => inFc(v.fc) && v.day >= from && v.day <= to && keep(v));
     const best = inRange.reduce((b, x) => (!b || x.income > b.income ? x : b), null);
     const worst = inRange.reduce((b, x) => (!b || x.income < b.income ? x : b), null);
 
     const costs = costsFor();
-    const runIn = costs.filter((e) => e.kind === "run" && e.day >= from && e.day <= to).reduce((s, e) => s + e.gil, 0);
-    const invIn = costs.filter((e) => e.kind === "inv" && e.day >= from && e.day <= to).reduce((s, e) => s + e.gil, 0);
+    const runIn = costs.filter((e) => e.kind === "run" && e.day >= from && e.day <= to && keep(e)).reduce((s, e) => s + e.gil, 0);
+    const invIn = costs.filter((e) => e.kind === "inv" && e.day >= from && e.day <= to && keep(e)).reduce((s, e) => s + e.gil, 0);
     const captured = inRange.reduce((s, x) => s + x.cap, 0);
 
     // Items.
@@ -393,7 +412,8 @@ footer { color: var(--text-3); font-size: 12.5px; margin-top: 26px; border-top: 
       byFc: groupStats(rangeVoyages, (v) => v.fc, (v) => companies[v.fc].name),
       byRoute: groupStats(rangeVoyages, (v) => v.route || "?", (v) => v.route || "?"),
       byItem,
-      finance: finance(days, costs),
+      // Payback always covers the whole ledger: the levelling weeks were paid for too.
+      finance: finance(farmOnly ? daily(false) : days, costs),
     };
   }
 
@@ -609,6 +629,8 @@ footer { color: var(--text-3); font-size: 12.5px; margin-top: 26px; border-top: 
     ["thismonth", "This month"], ["lastmonth", "Last month"], ["thisquarter", "This quarter"], ["lastquarter", "Last quarter"],
     ["thisyear", "This year"], ["lifetime", "Lifetime"],
   ];
+  if (FARM.farmfirst.size) PRESETS.push(["farmfirst", "Farming: first sub"]);
+  if (FARM.farmall.size) PRESETS.push(["farmall", "Farming: all subs"]);
 
   function resolvePreset(p, first) {
     const t = TODAY, w = startOfWeek(t), m = startOfMonth(t), q = startOfQuarter(t);
@@ -627,8 +649,12 @@ footer { color: var(--text-3); font-size: 12.5px; margin-top: 26px; border-top: 
     }
   }
 
-  function firstDayForFc() {
+  function firstDayForFc(preset) {
     let first = null;
+    if (FARM[preset]) {
+      for (const [fc, day] of FARM[preset]) if ((fc < 0 ? state.fcs === null : inFc(fc)) && (first === null || day < first)) first = day;
+      return first;
+    }
     for (const v of voyages) if (inFc(v.fc) && (first === null || v.day < first)) first = v.day;
     // Spending counts too, so "Lifetime" includes parts and housing bought before the first voyage.
     for (const e of entries) if (inFc(e.fc) && (first === null || e.day < first)) first = e.day;
@@ -679,7 +705,7 @@ footer { color: var(--text-3); font-size: 12.5px; margin-top: 26px; border-top: 
   }
 
   function applyPreset(k) {
-    const [a, b] = resolvePreset(k, firstDayForFc());
+    const [a, b] = resolvePreset(k, firstDayForFc(k));
     state.from = a; state.to = b; state.preset = k;
   }
 
@@ -712,8 +738,19 @@ footer { color: var(--text-3); font-size: 12.5px; margin-top: 26px; border-top: 
     const nDays = state.to - state.from + 1;
     document.getElementById("scope").textContent = `${fcName} · ${fmtDay(state.from)} to ${fmtDay(state.to)} · ${plural(nDays, "day")}`;
 
+    let farmNote = "";
+    if (farmingView()) {
+      const when = [...farmStarts()].filter(([fc]) => fc >= 0 && inFc(fc)).sort((a, b) => a[1] - b[1])
+        .map(([fc, day]) => (companies.length > 1 ? companies[fc].name + " from " : "from ") + fmtDay(day));
+      const routes = esc(farming.routes || "a farming route");
+      const rule = state.preset === "farmall"
+        ? `the first day all of its submarines had come back from ${routes}`
+        : `the first day one of its submarines came back from ${routes}`;
+      farmNote = `<div class="card"><h2>Farming days only</h2><p class="note" style="margin-bottom:0">Each Free Company counts from ${rule}${when.length ? ": " + esc(when.join(", ")) : ""}. Levelling voyages before that are left out of every figure on this page except payback, which covers everything.</p></div>`;
+    }
+
     if (R.recorded === 0) {
-      content.innerHTML = `<div class="card"><h2>Nothing recorded in this period</h2><p class="note">Choose a different range above. Days before the ledger's first record, and days still to come, have nothing to show.</p></div>` + financeHtml(R);
+      content.innerHTML = farmNote + `<div class="card"><h2>Nothing recorded in this period</h2><p class="note">Choose a different range above. Days before the ledger's first record, and days still to come, have nothing to show.</p></div>` + financeHtml(R);
       drawFinance(R);
       return;
     }
@@ -740,7 +777,7 @@ footer { color: var(--text-3); font-size: 12.5px; margin-top: 26px; border-top: 
     const groupWord = (unit === "day" ? "Day" : unit[0].toUpperCase() + unit.slice(1));
     const showSubFc = multi();
 
-    content.innerHTML = `
+    content.innerHTML = farmNote + `
       <div class="tiles" style="--cols:${tileCount % 4 === 0 ? 4 : tileCount % 3 === 0 ? 3 : tileCount % 5 === 0 ? 5 : 4}">${tiles}</div>
       <div class="card">
         <div class="card-head"><h2>${esc(chartTitle)}</h2>

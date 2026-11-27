@@ -47,12 +47,16 @@ internal sealed class ReportsPage
     private ChartMode chartMode = ChartMode.PerPeriod;
     private Breakdown breakdown = Breakdown.Items;
 
-    private (long Version, FcFilter Fc, string Zone, int Cutoff, DateOnly Today, DateRange Range, PeriodGrouping Grouping) cacheKey;
+    private (long Version, FcFilter Fc, string Zone, int Cutoff, DateOnly Today, DateRange Range, PeriodGrouping Grouping, FarmingPeriod? Farming) cacheKey;
+    private (long Version, FcFilter Fc, string Zone, int Cutoff, FarmingPeriod? Farming) daysKey;
     private List<CompanyRow> companies = [];
     private RangeReport report = new();
     private SortedDictionary<DateOnly, DayTotal> days = [];
     private List<Voyage> voyagesInRange = [];
     private DateOnly? firstDay;
+
+    /// <summary>Set while a farming preset is chosen: the levelling days before it are left out.</summary>
+    private FarmingPeriod? farming;
 
     public ReportsPage(Plugin plugin)
     {
@@ -75,18 +79,33 @@ internal sealed class ReportsPage
         var today = calendar.Today(DateTimeOffset.Now);
         var snapshot = plugin.Store.Snapshot();
         var fc = plugin.Scope;
+        farming = RangePresets.FarmingRule(preset) is { } rule ? plugin.Farming(rule) : null;
 
         // The ledger's first day is needed before the range (for "Lifetime"), so the daily picture comes first.
-        if (cacheKey.Version != snapshot.Version || cacheKey.Fc != fc || cacheKey.Zone != calendar.Zone.Id || cacheKey.Cutoff != calendar.CutoffMinutes)
+        var dk = (snapshot.Version, fc, calendar.Zone.Id, calendar.CutoffMinutes, farming);
+        if (dk != daysKey)
         {
-            days = LedgerAnalytics.Daily(snapshot.Voyages, snapshot.Entries, calendar, fc);
-            firstDay = days.Count > 0 ? days.Keys.First() : null;
+            daysKey = dk;
+            IReadOnlyList<Voyage> voyages = snapshot.Voyages;
+            IReadOnlyList<LedgerEntry> entries = snapshot.Entries;
+            if (farming is not null)
+                (voyages, entries) = farming.Apply(voyages, entries, calendar);
 
-            // "Lifetime" also takes in spending from before the first voyage, such as the parts and the plot.
-            foreach (var e in snapshot.Entries)
+            days = LedgerAnalytics.Daily(voyages, entries, calendar, fc);
+            if (farming is not null)
             {
-                if (!e.Deleted && ExpenseCategories.IsCost(e.Kind) && fc.Includes(e.FcId) && (firstDay is null || e.BusinessDate < firstDay))
-                    firstDay = e.BusinessDate;
+                firstDay = farming.FirstFor(fc);
+            }
+            else
+            {
+                firstDay = days.Count > 0 ? days.Keys.First() : null;
+
+                // "Lifetime" also takes in spending from before the first voyage, such as the parts and the plot.
+                foreach (var e in snapshot.Entries)
+                {
+                    if (!e.Deleted && ExpenseCategories.IsCost(e.Kind) && fc.Includes(e.FcId) && (firstDay is null || e.BusinessDate < firstDay))
+                        firstDay = e.BusinessDate;
+                }
             }
         }
 
@@ -96,13 +115,14 @@ internal sealed class ReportsPage
         if (!groupingChosen)
             grouping = SuggestedGrouping(range.Days);
 
-        var key = (snapshot.Version, fc, calendar.Zone.Id, calendar.CutoffMinutes, today, range, grouping);
+        var key = (snapshot.Version, fc, calendar.Zone.Id, calendar.CutoffMinutes, today, range, grouping, farming);
         if (key == cacheKey)
             return;
 
         cacheKey = key;
-        report = LedgerReports.Build(snapshot.Voyages, snapshot.Entries, calendar, range, grouping, today, fc);
-        voyagesInRange = [.. snapshot.Voyages.Where(v => fc.Includes(v.FcId) && range.Contains(calendar.DateOf(v.CollectedUnix)))];
+        report = LedgerReports.Build(snapshot.Voyages, snapshot.Entries, calendar, range, grouping, today, fc, farming);
+        voyagesInRange = [.. snapshot.Voyages.Where(v => fc.Includes(v.FcId) && range.Contains(calendar.DateOf(v.CollectedUnix))
+            && (farming is null || farming.Covers(v.FcId, calendar.DateOf(v.CollectedUnix))))];
 
         // Each Free Company in view on its own, when there is more than one to compare.
         companies = [];
@@ -112,7 +132,7 @@ internal sealed class ReportsPage
             var rates = LedgerAnalytics.ByFreeCompany(voyagesInRange, id => id.ToString("X", Inv), fc).ToDictionary(g => g.Key, g => g.GilPer24Hours);
             foreach (var company in inView)
             {
-                var r = LedgerReports.Build(snapshot.Voyages, snapshot.Entries, calendar, range, grouping, today, company.FcId);
+                var r = LedgerReports.Build(snapshot.Voyages, snapshot.Entries, calendar, range, grouping, today, company.FcId, farming);
                 companies.Add(new CompanyRow(company.DisplayName, r.TotalGil, r.Voyages, r.AveragePerDay, r.AveragePerVoyage,
                     rates.GetValueOrDefault(company.FcId.ToString("X", Inv)), r.RecordedDays, r.Covered?.Days ?? 0, r.NetGil));
             }
@@ -176,12 +196,17 @@ internal sealed class ReportsPage
         var gap = Theme.S(8f);
         var x = startX;
 
-        for (var i = 0; i < RangePresets.Offered.Length; i++)
+        var drawn = 0;
+        var scope = plugin.Scope;
+        foreach (var option in RangePresets.Offered)
         {
-            var option = RangePresets.Offered[i];
+            // The farming presets only appear once a Free Company in view has run a farming route.
+            if (RangePresets.FarmingRule(option) is { } rule && plugin.Farming(rule).FirstFor(scope) is null && preset != option)
+                continue;
+
             var label = RangePresets.Label(option);
             var width = Widgets.PillSize(label, assets, dot: false).X + Theme.S(6f);
-            if (i > 0)
+            if (drawn++ > 0)
             {
                 // Flow onto a new line when the next pill would run past the edge.
                 if (x + width > limit)
@@ -195,6 +220,11 @@ internal sealed class ReportsPage
                 preset = option;
                 groupingChosen = false;
             }
+
+            if (option == RangePreset.FarmingFirstSub)
+                Widgets.Tooltip($"From the first day one of your submarines came back from {RouteWords()}, so the levelling days before it are left out.");
+            else if (option == RangePreset.FarmingAllSubs)
+                Widgets.Tooltip($"From the first day all of your submarines had come back from {RouteWords()}, so the levelling days before it are left out.\nA submarine that has never run one is not waited for.");
 
             x += width + gap;
         }
@@ -250,6 +280,47 @@ internal sealed class ReportsPage
                 groupingChosen = true;
             }
         }
+
+        if (farming is not null)
+        {
+            Widgets.VSpace(2f);
+            Widgets.TextWrapped(FarmingNote(), Theme.TextDim);
+        }
+    }
+
+    private string RouteWords()
+    {
+        var routes = FarmingPeriod.ParseRoutes(plugin.Config.FarmingRoutes);
+        return routes.Count switch
+        {
+            0 => "a farming route",
+            1 => routes[0],
+            _ => string.Join(", ", routes.Take(routes.Count - 1)) + " or " + routes[^1],
+        };
+    }
+
+    /// <summary>Which days a farming preset counts, in words, with each Free Company's start.</summary>
+    private string FarmingNote()
+    {
+        if (farming is null)
+            return string.Empty;
+
+        var scope = plugin.Scope;
+        var names = plugin.Store.Snapshot().FreeCompanies.ToDictionary(c => c.FcId, c => c.DisplayName);
+        var starts = farming.Starts.Where(kv => kv.Key != 0 && scope.Includes(kv.Key)).OrderBy(kv => kv.Value).ToList();
+        var rule = farming.Rule == FarmingStart.WholeFleet
+            ? $"the first day all of the submarines had come back from {RouteWords()}"
+            : $"the first day a submarine came back from {RouteWords()}";
+
+        if (starts.Count == 0)
+            return farming.IsEmpty
+                ? $"No submarine has come back from {RouteWords()} yet, so there are no farming days to show. The farming routes are set in Settings."
+                : "None of the Free Companies in view has farmed yet.";
+
+        var when = starts.Count == 1 && names.Count <= 1
+            ? starts[0].Value.ToString("d MMM yyyy", Inv)
+            : string.Join(", ", starts.Select(kv => $"{names.GetValueOrDefault(kv.Key, "Free Company")} {kv.Value.ToString("d MMM yyyy", Inv)}"));
+        return $"Farming days only: counting from {rule} ({when}). Levelling days before that are left out. The farming routes are set in Settings.";
     }
 
     private void DrawTiles(UiAssets assets)

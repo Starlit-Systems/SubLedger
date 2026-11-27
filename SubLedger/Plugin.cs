@@ -360,7 +360,10 @@ public sealed class Plugin : IDalamudPlugin
 
     /// <summary>Writes the self-contained HTML report and opens it in the default browser.</summary>
     public void OpenHtmlReport(DateRange range, RangePreset preset, PeriodGrouping grouping)
-        => RunExport("HTML report", () =>
+    {
+        var farmingFirst = Farming(FarmingStart.FirstSubmarine);
+        var farmingAll = Farming(FarmingStart.WholeFleet);
+        RunExport("HTML report", () =>
         {
             var calendar = Calendar;
             var today = calendar.Today(DateTimeOffset.Now);
@@ -375,13 +378,38 @@ public sealed class Plugin : IDalamudPlugin
                 Log.Debug("Export", $"Report logo not found: {ex.Message}");
             }
 
-            var html = HtmlReport.Build(Store.Snapshot(), calendar, Sectors, today, new ReportStart(range, preset, grouping, Scope), Version, logo, DateTimeOffset.Now);
+            var html = HtmlReport.Build(Store.Snapshot(), calendar, Sectors, today, new ReportStart(range, preset, grouping, Scope, farmingFirst, farmingAll), Version, logo, DateTimeOffset.Now);
             var name = $"SubLedger report {today:yyyy-MM-dd}.html";
             var path = Path.Combine(ExportDirectory, name);
             File.WriteAllText(path, html, new UTF8Encoding(false));
             Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
             return $"{name} written to {ExportDirectory} and opened in your browser";
         });
+    }
+
+    private (long Version, string Routes, string Zone, int Cutoff) farmingKey;
+    private FarmingPeriod? farmingFirstSub;
+    private FarmingPeriod? farmingAllSubs;
+
+    /// <summary>
+    /// When each Free Company began farming, judged by voyages on the farming routes listed in Settings: the first day
+    /// one submarine came back from one, or the first day all of them had.
+    /// </summary>
+    public FarmingPeriod Farming(FarmingStart rule)
+    {
+        var snapshot = Store.Snapshot();
+        var calendar = Calendar;
+        var key = (snapshot.Version, Config.FarmingRoutes, calendar.Zone.Id, calendar.CutoffMinutes);
+        if (farmingFirstSub is null || farmingAllSubs is null || key != farmingKey)
+        {
+            var routes = FarmingPeriod.ParseRoutes(Config.FarmingRoutes);
+            farmingFirstSub = FarmingPeriod.Detect(snapshot.Voyages, calendar, routes, FarmingStart.FirstSubmarine);
+            farmingAllSubs = FarmingPeriod.Detect(snapshot.Voyages, calendar, routes, FarmingStart.WholeFleet);
+            farmingKey = key;
+        }
+
+        return rule == FarmingStart.WholeFleet ? farmingAllSubs : farmingFirstSub;
+    }
 
     public void OpenExportFolder()
     {

@@ -155,6 +155,52 @@ internal sealed class SettingsPage
         ToggleRow("Shorten large amounts", "Show 1.05m instead of 1,047,250 in the dashboard's headline figures. The ledger always stores the exact amount, and hovering a figure shows it.",
             config.AbbreviateGil, v => config.AbbreviateGil = v);
         Widgets.EndPanel();
+        Widgets.VSpace(12f);
+
+        DrawFarming(assets);
+    }
+
+    private void DrawFarming(UiAssets assets)
+    {
+        var config = plugin.Config;
+        Widgets.SectionLabel("Farming", assets);
+        Widgets.BeginPanel();
+
+        Widgets.SettingRow("Farming routes", "Voyages on these routes are farming rather than levelling. The Reports page can count from the day farming began, so levelling days do not drag the averages down. Separate routes with commas.",
+            Theme.S(220f), ImGui.GetFrameHeight(), () =>
+            {
+                var text = config.FarmingRoutes;
+                ImGui.SetNextItemWidth(Theme.S(220f));
+                if (ImGui.InputTextWithHint("##farmingRoutes", Core.Analytics.FarmingPeriod.DefaultRoutes, ref text, 128))
+                {
+                    config.FarmingRoutes = text;
+                    Save();
+                }
+            });
+
+        Widgets.PanelDivider();
+
+        var first = plugin.Farming(Core.Analytics.FarmingStart.FirstSubmarine);
+        var all = plugin.Farming(Core.Analytics.FarmingStart.WholeFleet);
+        if (first.IsEmpty)
+        {
+            Widgets.TextWrapped(first.Routes.Count == 0
+                ? "No farming routes listed, so every day counts as levelling."
+                : $"No submarine has come back from {string.Join(" or ", first.Routes)} yet.", Theme.TextDim);
+        }
+        else
+        {
+            var names = plugin.Store.Snapshot().FreeCompanies.ToDictionary(c => c.FcId, c => c.DisplayName);
+            foreach (var (fcId, date) in first.Starts.OrderBy(kv => kv.Value))
+            {
+                var name = fcId == 0 ? "Submarines with no Free Company" : names.GetValueOrDefault(fcId, "Free Company");
+                var allText = all.Starts.TryGetValue(fcId, out var allDate) ? allDate.ToString("d MMM yyyy", CultureInfo.InvariantCulture) : "-";
+                Widgets.Text(name, Theme.Text);
+                Widgets.Text($"First submarine farming: {date.ToString("d MMM yyyy", CultureInfo.InvariantCulture)}    All submarines farming: {allText}", Theme.TextDim);
+            }
+        }
+
+        Widgets.EndPanel();
     }
 
     private void DrawCapture(UiAssets assets)

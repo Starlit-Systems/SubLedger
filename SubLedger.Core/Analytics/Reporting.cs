@@ -28,6 +28,12 @@ public enum RangePreset
     ThisYear,
     Lifetime,
     Custom,
+
+    /// <summary>From the first day any submarine ran a farming route. See <see cref="FarmingPeriod"/>.</summary>
+    FarmingFirstSub,
+
+    /// <summary>From the first day every submarine had run a farming route.</summary>
+    FarmingAllSubs,
 }
 
 public static class RangePresets
@@ -39,8 +45,16 @@ public static class RangePresets
         RangePreset.ThisWeek, RangePreset.LastWeek,
         RangePreset.ThisMonth, RangePreset.LastMonth,
         RangePreset.ThisQuarter, RangePreset.LastQuarter,
-        RangePreset.ThisYear, RangePreset.Lifetime,
+        RangePreset.ThisYear, RangePreset.Lifetime, RangePreset.FarmingFirstSub, RangePreset.FarmingAllSubs,
     ];
+
+    /// <summary>The farming rule behind a farming preset, or null for every other preset.</summary>
+    public static FarmingStart? FarmingRule(RangePreset preset) => preset switch
+    {
+        RangePreset.FarmingFirstSub => FarmingStart.FirstSubmarine,
+        RangePreset.FarmingAllSubs => FarmingStart.WholeFleet,
+        _ => null,
+    };
 
     public static string Label(RangePreset preset) => preset switch
     {
@@ -55,12 +69,15 @@ public static class RangePresets
         RangePreset.LastQuarter => "Last quarter",
         RangePreset.ThisYear => "This year",
         RangePreset.Lifetime => "Lifetime",
+        RangePreset.FarmingFirstSub => "Farming: first sub",
+        RangePreset.FarmingAllSubs => "Farming: all subs",
         _ => "Custom",
     };
 
     /// <summary>
     /// The dates a preset covers on a given day. Weeks run Monday to Sunday. "This ..." ranges end today, since the
-    /// rest of the period has not happened yet. Lifetime starts at the ledger's first record.
+    /// rest of the period has not happened yet. Lifetime starts at the ledger's first record, and the farming presets
+    /// at the day farming began; pass whichever applies as <paramref name="firstDay"/>.
     /// </summary>
     public static DateRange Resolve(RangePreset preset, DateOnly today, DateOnly? firstDay)
     {
@@ -176,8 +193,13 @@ public static class LedgerReports
         DateRange range,
         PeriodGrouping grouping,
         DateOnly today,
-        FcFilter fcs = default)
+        FcFilter fcs = default,
+        FarmingPeriod? farming = null)
     {
+        // Farming only: everything from before each Free Company began farming is left out, as if it never happened.
+        if (farming is not null)
+            (voyages, entries) = farming.Apply(voyages, entries, calendar);
+
         var allDays = LedgerAnalytics.Daily(voyages, entries, calendar, fcs);
         var days = allDays.Values.Where(d => range.Contains(d.Date)).ToList();
         var inRange = voyages.Where(v => !v.Deleted && fcs.Includes(v.FcId) && range.Contains(calendar.DateOf(v.CollectedUnix))).ToList();

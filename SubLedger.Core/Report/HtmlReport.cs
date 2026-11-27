@@ -7,7 +7,8 @@ using SubLedger.Core.Model;
 namespace SubLedger.Core.Report;
 
 /// <summary>How the report opens: the period, grouping and Free Company chosen in the plugin. The page can change all three.</summary>
-public sealed record ReportStart(DateRange Range, RangePreset Preset, PeriodGrouping Grouping, FcFilter FreeCompanies);
+public sealed record ReportStart(DateRange Range, RangePreset Preset, PeriodGrouping Grouping, FcFilter FreeCompanies,
+    FarmingPeriod? FarmingFirstSub = null, FarmingPeriod? FarmingAllSubs = null);
 
 /// <summary>
 /// Writes the ledger into one self-contained HTML page: data, styles, charts and logic all inline, nothing fetched
@@ -110,6 +111,12 @@ public static class HtmlReport
             })
             .ToList();
 
+        // When each Free Company began farming, for the page's farming presets. Index -1 is "no Free Company".
+        List<object[]> StartsOf(FarmingPeriod? period) => (period?.Starts ?? new Dictionary<ulong, DateOnly>())
+            .Select(kv => new object[] { kv.Key == 0 ? -1 : CompanyIndex(kv.Key), kv.Value.ToString("yyyy-MM-dd", Inv) })
+            .ToList();
+        var farmingRoutes = (start.FarmingFirstSub ?? start.FarmingAllSubs)?.Routes ?? [];
+
         var cutoff = TimeSpan.FromMinutes(calendar.CutoffMinutes);
         var data = new
         {
@@ -126,6 +133,12 @@ public static class HtmlReport
                 preset = PresetKey(start.Preset),
                 group = start.Grouping.ToString().ToLowerInvariant(),
                 fcs = start.FreeCompanies.Ids.Select(CompanyIndex).Where(i => i >= 0).ToArray(),
+            },
+            farming = new
+            {
+                routes = string.Join(" or ", farmingRoutes),
+                first = StartsOf(start.FarmingFirstSub),
+                all = StartsOf(start.FarmingAllSubs),
             },
             companies = companies.Select(c => new { id = c.Id.ToString("X16", Inv), name = c.Name }),
             subs = subs.Select(s => new { fc = s.Fc, name = s.Name }),
@@ -157,6 +170,8 @@ public static class HtmlReport
         RangePreset.LastQuarter => "lastquarter",
         RangePreset.ThisYear => "thisyear",
         RangePreset.Lifetime => "lifetime",
+        RangePreset.FarmingFirstSub => "farmfirst",
+        RangePreset.FarmingAllSubs => "farmall",
         _ => "custom",
     };
 

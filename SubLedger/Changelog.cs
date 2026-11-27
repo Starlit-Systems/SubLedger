@@ -10,6 +10,13 @@ internal static class Changelog
 {
     public static readonly IReadOnlyList<ChangelogEntry> Entries =
     [
+        new("0.7.0.0", new DateOnly(2026, 11, 26),
+        [
+            "Two new Reports ranges leave the levelling weeks out of the averages: \"Farming: first sub\" counts from the first day one of your submarines came back from OJ or JORZ, and \"Farming: all subs\" from the first day all of them had",
+            "Each Free Company counts from its own start, so a second fleet that began farming later is judged on its own farming days",
+            "The farming routes are set under Settings, General, which also shows the dates found for each Free Company",
+            "The HTML report has the same two ranges. Payback still covers everything, since the levelling weeks were paid for too",
+        ]),
         new("0.6.0.0", new DateOnly(2026, 11, 26),
         [
             "With more than one Free Company, the picker at the top of the window now takes any mix: all of them, one, or any combination. Every page, export and the HTML report follow it",
